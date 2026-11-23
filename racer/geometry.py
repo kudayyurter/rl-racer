@@ -28,7 +28,10 @@ def _cross(a: np.ndarray, b: np.ndarray) -> np.ndarray:
 
 
 def _safe_divide(numer: np.ndarray, denom: np.ndarray, parallel: np.ndarray) -> np.ndarray:
-    """numer / denom, but 0 where parallel, without ever dividing by ~0 (no warnings)."""
+    """numer / denom without ever dividing by ~0 (so no warnings).
+
+    The value is arbitrary where ``parallel`` is True; callers must mask those entries.
+    """
     return numer / np.where(parallel, 1.0, denom)
 
 

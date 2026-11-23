@@ -82,3 +82,37 @@ def test_crossing_any_pair_among_many():
     p1 = np.array([[[0., 0.], [10., 10.]]]); p2 = np.array([[[1., 0.], [12., 10.]]])
     q1 = np.array([[[50., 50.], [11., 9.]]]); q2 = np.array([[[51., 51.], [11., 11.]]])
     assert any_crossing(p1, p2, q1, q2)[0]
+
+
+def _one(a, b):
+    """Wrap a single segment (a->b) as an (N=1, count=1, 2) endpoint pair."""
+    return np.array([[a]], dtype=float), np.array([[b]], dtype=float)
+
+
+def test_lines_intersect_but_p_stops_short():
+    # Infinite lines meet at (2, 0); p ends at x=1, so t=2 (out of range), u=0.5.
+    p1, p2 = _one((0, 0), (1, 0))
+    q1, q2 = _one((2, -1), (2, 1))
+    assert not any_crossing(p1, p2, q1, q2)[0]
+
+
+def test_lines_intersect_but_p_starts_after_crossing():
+    # Crossing point is behind p's start: t=-0.5 (out of range), u=0.5.
+    p1, p2 = _one((1, 0), (3, 0))
+    q1, q2 = _one((0, -1), (0, 1))
+    assert not any_crossing(p1, p2, q1, q2)[0]
+
+
+def test_lines_intersect_but_q_stops_short():
+    # Lines meet at (1, 0); q spans y 1..3, so u=-0.5 (out of range), t=0.25.
+    p1, p2 = _one((0, 0), (4, 0))
+    q1, q2 = _one((1, 1), (1, 3))
+    assert not any_crossing(p1, p2, q1, q2)[0]
+
+
+def test_asymmetric_crossing_is_detected():
+    # Crossing at (1, 0): t=0.25 along p, u=0.75 along q, so swapping t/u would still pass range checks
+    # only by luck; the tests above pin each range separately.
+    p1, p2 = _one((0, 0), (4, 0))
+    q1, q2 = _one((1, -3), (1, 1))
+    assert any_crossing(p1, p2, q1, q2)[0]
