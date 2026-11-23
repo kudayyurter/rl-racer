@@ -103,6 +103,26 @@ def test_projection_does_not_jump_hairpin():
         prev = s_now[0]
 
 
+def test_projection_search_is_windowed():
+    # A point at y=8 is nearer the far straight's centerline (y=14, 6 m away) than its own
+    # (y=0, 8 m away), but the hint says the car is on the near straight. The windowed search
+    # must stay near the hint; a global search would jump to the far straight.
+    t = build_track("hp", hairpin_points(gap=14.0, straight=120.0), 12.0)
+    m = len(t.center)
+    half = 10
+    hint = np.array([int(60.0 / t.spacing)])
+    point = np.array([[60.0, 8.0]])
+
+    def circ_dist(a, b):
+        d = abs(int(a) - int(b)) % m
+        return min(d, m - d)
+
+    idx, _ = t.project(point, hint, half=half)
+    global_idx, _ = t.project(point, hint, half=m // 2)
+    assert circ_dist(idx[0], hint[0]) <= half
+    assert circ_dist(global_idx[0], hint[0]) > half  # proves the test discriminates
+
+
 def test_bounds_include_walls():
     t = build_track("c", circle_points(50, 24), 12.0)
     xmin, ymin, xmax, ymax = t.bounds()

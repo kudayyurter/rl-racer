@@ -107,6 +107,12 @@ class Track:
         projection onto the centerline segment next to that sample (the one on either side
         with the smaller distance). Projecting onto the segment, not just taking the sample's
         s, makes s continuous instead of quantized to the sample spacing. s is in [0, length).
+
+        Caveat for reward tuning: projecting onto the sampled polyline is monotone but not
+        perfectly continuous for a car off the centerline in a curve. On the inner side s
+        can jump by up to about spacing * d / R at each segment-bisector crossing (d =
+        offset from the centerline, R = corner radius), and on the outer side it plateaus.
+        The totals over a stretch are exact, so summed progress is correct.
         """
         m = len(self.center)
         pos = np.asarray(pos, dtype=float)
