@@ -1,6 +1,6 @@
 """Command-line entry point: the ``racer`` console script.
 
-Each subcommand is a stub for now; later tasks replace the stubs with real
+Subcommands not built yet are stubs; later tasks replace the stubs with real
 implementations. Keeping the full command list here from the start means the
 CLI surface is visible (and ``racer --help`` works) from day one.
 """
@@ -22,11 +22,25 @@ def _not_implemented(args: argparse.Namespace) -> int:
     return 1
 
 
+def _bench(args: argparse.Namespace) -> int:
+    # Imported here so `racer --help` stays fast and doesn't load the simulator.
+    from racer.bench import bench, format_table
+
+    print(format_table(bench(seconds=args.seconds)))
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="racer", description="RL Racer")
     sub = parser.add_subparsers(dest="command", required=True)
+    subparsers = {}
     for name, help_text in COMMANDS.items():
-        sub.add_parser(name, help=help_text).set_defaults(handler=_not_implemented)
+        subparsers[name] = sub.add_parser(name, help=help_text)
+        subparsers[name].set_defaults(handler=_not_implemented)
+
+    subparsers["bench"].add_argument("--seconds", type=float, default=3.0,
+                                     help="wall time per batch size (default 3)")
+    subparsers["bench"].set_defaults(handler=_bench)
     return parser
 
 
