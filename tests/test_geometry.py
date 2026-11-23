@@ -111,8 +111,15 @@ def test_lines_intersect_but_q_stops_short():
 
 
 def test_asymmetric_crossing_is_detected():
-    # Crossing at (1, 0): t=0.25 along p, u=0.75 along q, so swapping t/u would still pass range checks
-    # only by luck; the tests above pin each range separately.
+    # A true crossing at an off-centre parameter pair (t=0.25 along p, u=0.75 along q) at (1, 0),
+    # so the result does not depend on both parameters happening to be 0.5.
     p1, p2 = _one((0, 0), (4, 0))
     q1, q2 = _one((1, -3), (1, 1))
     assert any_crossing(p1, p2, q1, q2)[0]
+
+
+def test_lines_intersect_but_q_ends_before_crossing():
+    # Lines meet at (1, 0); q runs y -3..-1 and stops short of it, so u=1.5 (past q's end), t=0.25.
+    p1, p2 = _one((0, 0), (4, 0))
+    q1, q2 = _one((1, -3), (1, -1))
+    assert not any_crossing(p1, p2, q1, q2)[0]
