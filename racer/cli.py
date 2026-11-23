@@ -30,6 +30,14 @@ def _bench(args: argparse.Namespace) -> int:
     return 0
 
 
+def _drive(args: argparse.Namespace) -> int:
+    # Imported here so `racer --help` doesn't load raylib.
+    from racer.drive import run_drive
+
+    return run_drive(args.track, overlay=args.overlay, screenshot=args.screenshot,
+                     frames=args.frames)
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="racer", description="RL Racer")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -41,6 +49,17 @@ def build_parser() -> argparse.ArgumentParser:
     subparsers["bench"].add_argument("--seconds", type=float, default=3.0,
                                      help="wall time per batch size (default 3)")
     subparsers["bench"].set_defaults(handler=_bench)
+
+    drive = subparsers["drive"]
+    drive.add_argument("--track", default="twisty",
+                       help="track name (tracks/NAME.json) or path to a track JSON (default twisty)")
+    drive.add_argument("--overlay", action="store_true",
+                       help="start with the debug overlay on (D toggles it)")
+    drive.add_argument("--screenshot", metavar="PATH",
+                       help="render --frames frames, save a PNG to PATH, and exit")
+    drive.add_argument("--frames", type=int, default=30,
+                       help="frames to render before the screenshot (default 30)")
+    drive.set_defaults(handler=_drive)
     return parser
 
 

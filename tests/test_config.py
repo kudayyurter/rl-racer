@@ -37,5 +37,6 @@ def test_list_becomes_tuple_for_tuple_fields():
 
 
 def test_cli_stub_returns_one(capsys):
-    assert main(["drive"]) == 1
+    # Any subcommand that is still a stub (drive became real in Task 7).
+    assert main(["compare"]) == 1
     assert "not implemented yet" in capsys.readouterr().out
