@@ -160,6 +160,13 @@ class WatchSession:
         try:
             # weights_only=False: see racer.policy.load_policy (our own checkpoint format).
             ckpt = torch.load(path, weights_only=False)
+            # A policy trained on other sensors cannot drive this env; say so plainly rather
+            # than letting it surface as a numpy shape error from the first act().
+            expected, given = ckpt.get("obs_dim"), self.obs.shape[1]
+            if expected is not None and expected != given:
+                self.error = (f"checkpoint expects {expected} observation inputs, this env "
+                              f"gives {given} (config.json env mismatch?)")
+                return
             policy = policy_from_checkpoint(ckpt)
             policy.act(self.obs)   # fail here, not mid-drive, if it can't read our observations
         except Exception as e:   # anything: the viewer must keep running

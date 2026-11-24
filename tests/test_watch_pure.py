@@ -10,6 +10,7 @@ import os
 
 import numpy as np
 import pytest
+import torch
 
 from racer.algos.evolution import EvolutionPolicy
 from racer.config import EnvConfig
@@ -165,3 +166,16 @@ def test_bad_checkpoint_shows_error_instead_of_crashing(tmp_path):
     assert session.checkpoint["iteration"] == 1    # still driving the last good policy
     assert "nonsense" in session.error
     assert any("nonsense" in line for line in session.status_lines())
+
+
+def test_checkpoint_for_other_observation_size_is_refused_clearly(tmp_path):
+    # The run's env has 5 rays (8 inputs) but its checkpoint was built for 12 inputs.
+    run = RunDir.create("evolution", 0, root=tmp_path)
+    run.save_config({"method": "evolution", "seed": 0, "train": {"track": "oval"},
+                     "env": {"n_rays": 5, "max_episode_s": 1.0}})
+    _save_policy(run, 1)
+    ckpt = torch.load(run.path / "checkpoints" / "latest.pt", weights_only=False)
+    run.save_checkpoint({**ckpt, "obs_dim": 12}, 1)
+    session = WatchSession(run.path, reload_s=0.05, n_ghosts=3)
+    assert session.policy is None
+    assert "checkpoint expects 12 observation inputs, this env gives 8" in session.error
