@@ -107,7 +107,7 @@ each method batches its cars.
 
 ## Commands
 
-All commands are subcommands of `racer` ([`cli.py`](../../racer/cli.py#L10-L17)); `uv run racer
+All commands are subcommands of `racer` ([`cli.py`](../../racer/cli.py#L11-L18)); `uv run racer
 <command> --help` lists every flag.
 
 | command | what it does | example |

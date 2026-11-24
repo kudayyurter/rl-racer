@@ -146,7 +146,7 @@ pins that nothing else changed.
 ## Evolution ranks, so only orderings matter
 
 Evolution never looks at fitness *values*, only at their order:
-[`next_generation`](../../racer/algos/evolution.py#L95-L102) sorts and keeps the top 16.
+[`next_generation`](../../racer/algos/evolution.py#L101-L108) sorts and keeps the top 16.
 
 ```python
 elites = genomes[np.argsort(fitness)[::-1][:n_elite]]  # best first

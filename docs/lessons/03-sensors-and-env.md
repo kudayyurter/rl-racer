@@ -212,16 +212,16 @@ When a car's episode ends, two behaviours are available ([class docstring](../..
 
 [Gymnasium](https://gymnasium.farama.org/) is the standard Python interface for RL environments:
 `reset()` returns `(obs, info)`, `step(action)` returns `(obs, reward, terminated, truncated,
-info)`. [`RacerEnv`](../../racer/gym_env.py#L23-L61) is that interface over a `BatchSim` with one
+info)`. [`RacerEnv`](../../racer/gym_env.py#L23-L64) is that interface over a `BatchSim` with one
 car. It reimplements nothing; it only adapts shapes and types (float32 observations, Python
 floats and bools). It exists so that any off-the-shelf RL library can train on exactly our
 physics and reward, which is how Stable-Baselines3 serves as the answer key in lesson 07.
-[`test_passes_env_checker`](../../tests/test_gym_env.py#L14-L16) runs Gymnasium's own checker,
-and [`test_matches_batchsim`](../../tests/test_gym_env.py#L25-L42) checks step-for-step equality
+[`test_passes_env_checker`](../../tests/test_gym_env.py#L15-L17) runs Gymnasium's own checker,
+and [`test_matches_batchsim`](../../tests/test_gym_env.py#L26-L43) checks step-for-step equality
 with the raw simulator.
 
 One wrapper detail shows how strict that checker is: `info["lap_time"]` appears only on the step a
-lap finishes ([gym_env.py#L56-L59](../../racer/gym_env.py#L56-L59)). A NaN placeholder on every
+lap finishes ([gym_env.py#L59-L62](../../racer/gym_env.py#L59-L62)). A NaN placeholder on every
 other step would fail the checker's determinism test, because `NaN != NaN`.
 
 A single-car interface is also slow, for the reason Experiment 1 shows. SB3 trains on 16 cars at
@@ -380,7 +380,7 @@ evolution run from lesson 00 (`runs/evolution-20261123-193221-s0`) reached an ev
 | [`test_lap_counted_once`](../../tests/test_sim.py#L69-L101) | a real lap counts once, ends at the spawn point, and its time is right |
 | [`test_max_laps_truncates_with_lap_bonus`](../../tests/test_sim.py#L120-L138) | finishing the last lap pays the bonus and truncates |
 | [`test_auto_reset_returns_final_obs`](../../tests/test_sim.py#L168-L180) | after auto-reset, `final_obs` keeps the pre-reset observation |
-| [`test_passes_env_checker`](../../tests/test_gym_env.py#L14-L16) | `RacerEnv` passes Gymnasium's checker |
+| [`test_passes_env_checker`](../../tests/test_gym_env.py#L15-L17) | `RacerEnv` passes Gymnasium's checker |
 | [`test_vec_env_matches_racer_env_step_by_step`](../../tests/test_sb3.py#L77-L104) | SB3's batched env and `RacerEnv` agree step by step |
 
 Next: [04 · Neural nets and neuroevolution](04-neural-nets-and-evolution.md).

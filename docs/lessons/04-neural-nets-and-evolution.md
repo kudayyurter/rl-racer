@@ -17,7 +17,7 @@ Files: [`racer/nets_np.py`](../../racer/nets_np.py), [`racer/algos/evolution.py`
 
 The network is a *multilayer perceptron* (MLP): a chain of layers, each one a matrix multiply,
 a bias add and a squashing function. Its layer sizes are set at
-[evolution.py#L113](../../racer/algos/evolution.py#L113):
+[evolution.py#L119](../../racer/algos/evolution.py#L119):
 
 ```python
 sizes = (obs_dim(env_cfg), *cfg.hidden, 2)   # (12, 32, 2) with the defaults
@@ -196,10 +196,10 @@ episode is a different random track, fitness becomes noisy and that guarantee go
 
 ## One generation, line by line
 
-[`train_evolution`](../../racer/algos/evolution.py#L108-L155) loops over generations until the
+[`train_evolution`](../../racer/algos/evolution.py#L114-L161) loops over generations until the
 budget is spent. Each generation:
 
-**1. Every car drives one episode.** [`run_generation`](../../racer/algos/evolution.py#L78-L92):
+**1. Every car drives one episode.** [`run_generation`](../../racer/algos/evolution.py#L84-L98):
 
 ```python
 obs = sim.reset()                       # all P cars on the start line
@@ -210,7 +210,7 @@ while sim.alive.any():
     obs = result.obs
 ```
 
-The simulator is built with `auto_reset=False` ([line 114](../../racer/algos/evolution.py#L114)):
+The simulator is built with `auto_reset=False` ([line 120](../../racer/algos/evolution.py#L120)):
 a car that crashes, times out or finishes its two laps freezes and earns 0 from then on, so
 `fitness` ends up as each car's episode return. The generation ends when the last car stops.
 `env_steps` counts only the cars still driving, so a crashed car frozen on the track costs
@@ -228,7 +228,7 @@ cars now moved, and crashed early. As cars learned
 to survive, the cost climbed back: from generation 15 to the end it stayed between 64,950 and
 91,397 steps per generation.
 
-**2. Selection and mutation.** [`next_generation`](../../racer/algos/evolution.py#L95-L102):
+**2. Selection and mutation.** [`next_generation`](../../racer/algos/evolution.py#L101-L108):
 
 ```python
 elites   = genomes[np.argsort(fitness)[::-1][:n_elite]]           # the best 16, best first
@@ -264,14 +264,14 @@ sensitive middle and swings. Most such children are worse than their parent, and
 a few better ones per generation are enough. Experiment 1 changes this number.
 
 **3. Evaluate and checkpoint, every `eval_every` = 5 generations and on the last one**
-([lines 137-151](../../racer/algos/evolution.py#L137-L151)). The best genome of the generation
+([lines 143-157](../../racer/algos/evolution.py#L143-L157)). The best genome of the generation
 drives one episode in [`evaluate`](../../racer/evaluate.py#L28-L57), its checkpoint is saved, and if
 it completed a lap, so is its fastest lap as a ghost.
 
 The evaluation drives the same genome from the same start line, so you might expect
 `eval_return` to equal `best_fitness` on the same row. Usually the two are very close, but
 not always. Training runs the network through `einsum` in `forward_population`; evaluation runs it
-through `x @ w` in [`EvolutionPolicy.act`](../../racer/algos/evolution.py#L52-L57). The two add
+through `x @ w` in [`EvolutionPolicy.act`](../../racer/algos/evolution.py#L52-L62). The two add
 the same products in a different order, so their actions can differ in the last few bits: on
 the start-line observation, the 14 final networks of this lesson's runs give differences from 0
 (three of them) up to 7.2e-16 (`forward_pass.py`'s "max difference", above, run on each).
@@ -350,10 +350,10 @@ The `metrics.csv` columns ([`METRIC_COLUMNS`](../../racer/runlog.py#L29-L30), pl
 | `eval_best_lap_s` | its fastest lap, seconds (empty if it did not lap) |
 | `best_fitness` | the best genome's return this generation; never decreases, thanks to elitism |
 
-A checkpoint is a dict ([lines 143-146](../../racer/algos/evolution.py#L143-L146)): the method
+A checkpoint is a dict ([lines 149-152](../../racer/algos/evolution.py#L149-L152)): the method
 name, generation and step count, `obs_dim`, the layer sizes, the 482 weights, and the env config
 it was trained with. The viewer and
-`evaluate` turn it back into a driver through [`EvolutionPolicy`](../../racer/algos/evolution.py#L45-L68),
+`evaluate` turn it back into a driver through [`EvolutionPolicy`](../../racer/algos/evolution.py#L45-L74),
 which runs the same forward pass for a batch of observations with one network.
 
 The console prints one line per generation (`best` and `mean` are `best_fitness` and
