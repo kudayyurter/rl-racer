@@ -6,7 +6,7 @@ import numpy as np
 import pytest
 
 from racer.cli import main
-from racer.compare import aggregate, load_run, summarize
+from racer.compare import aggregate, load_run, summarize, summary_markdown
 from racer.runlog import RunDir
 
 NAN = float("nan")
@@ -80,7 +80,7 @@ def test_run_with_no_eval_rows_counts_as_failed_seed(tmp_path):
 
 def test_aggregate_steps_values_and_never_extrapolates(tmp_path):
     curves = [load_run(p) for p in three_seeds(tmp_path)]
-    x, med, lo, hi = aggregate(curves, "steps", "progress")
+    x, med, lo, hi, n = aggregate(curves, "steps", "progress")
     assert list(x) == [100, 200, 300, 400, 500]
     # At x=200: seed a=50, b holds 20 (from 100), c holds 10 -> median 20, band 10..50.
     assert (med[1], lo[1], hi[1]) == (20.0, 10.0, 50.0)
@@ -88,14 +88,18 @@ def test_aggregate_steps_values_and_never_extrapolates(tmp_path):
     assert med[3] == 450.0
     # At x=500 run a has ended: only b (500) and c (80) are used, not an extrapolated a.
     assert (lo[4], hi[4]) == (80.0, 500.0)
+    # Contributing seeds per x: a has no eval point at x=100 and ends after x=400.
+    assert list(n) == [2, 3, 3, 3, 2]
 
 
 def test_aggregate_best_lap_ignores_seeds_without_a_lap_yet(tmp_path):
     curves = [load_run(p) for p in three_seeds(tmp_path)]
-    x, med, lo, hi = aggregate(curves, "steps", "best_lap")
+    x, med, lo, hi, n = aggregate(curves, "steps", "best_lap")
     assert math.isnan(med[0])                  # nobody has lapped at x=100
     assert (lo[2], hi[2]) == (30.0, 34.0)      # seed c has no lap and is left out
     assert med[2] == 32.0
+    # Seed a laps at x=300, b at x=300; c never: counts 0,0,2,2,1 (a ended after x=400).
+    assert list(n) == [0, 0, 2, 2, 1]
 
 
 def test_cli_compare_writes_plots_and_summary(tmp_path):
@@ -105,8 +109,18 @@ def test_cli_compare_writes_plots_and_summary(tmp_path):
     assert (out / "t_vs_steps.png").stat().st_size > 1000
     assert (out / "t_vs_time.png").stat().st_size > 1000
     text = (out / "summary.md").read_text()
-    assert "## t" in text and "| ppo | twisty | 3 | 2/3 |" in text
+    assert "## t" in text and "| ppo · twisty | 3 | 2/3 |" in text
     assert "30.00 (28.00–32.00)" in text
     # A second invocation appends rather than overwrites.
     main(["compare", *map(str, runs), "--out", str(out), "--name", "u"])
     assert (out / "summary.md").read_text().count("## ") == 2
+
+
+def test_summary_table_tells_clashing_groups_apart(tmp_path):
+    runs = [make_run(tmp_path, "ppo", 0, [(1, 1, 1.0, 0, NAN)], track="oval"),
+            make_run(tmp_path, "ppo", 1, [(1, 1, 1.0, 0, NAN)], track="oval", env={"dt": 0.02})]
+    rows = summarize(runs)
+    text = summary_markdown(rows, "x")
+    lines = [ln for ln in text.splitlines() if ln.startswith("| ppo")]
+    assert len(lines) == 2 and lines[0].split("|")[1] != lines[1].split("|")[1]
+    assert all("#" in ln.split("|")[1] for ln in lines)

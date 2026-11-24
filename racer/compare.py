@@ -93,7 +93,7 @@ def group_labels(keys) -> dict[tuple, str]:
 def aggregate(curves: list[dict], x_key: str, y_key: str):
     """Median, min and max across seeds of ``y_key`` on the union of the seeds' x values.
 
-    Returns ``(x, median, lo, hi)``. Each seed holds its last value until its next point and
+    Returns ``(x, median, lo, hi, n)`` where ``n`` counts the seeds contributing at each x. Each seed holds its last value until its next point and
     is absent outside its own x range; NaN y values (no lap yet) are left out too. Where no
     seed contributes the result is NaN.
     """
@@ -106,11 +106,13 @@ def aggregate(curves: list[dict], x_key: str, y_key: str):
         inside = (idx >= 0) & (x <= c[x_key][-1])
         stack[i, inside] = c[y_key][idx[inside]]
     median, lo, hi = (np.full(len(x), np.nan) for _ in range(3))
+    n = np.zeros(len(x), dtype=int)
     for j in range(len(x)):
         vals = stack[:, j][np.isfinite(stack[:, j])]
+        n[j] = len(vals)
         if len(vals):
             median[j], lo[j], hi[j] = np.median(vals), vals.min(), vals.max()
-    return x, median, lo, hi
+    return x, median, lo, hi, n
 
 
 def _first_lap(curve: dict):
@@ -158,13 +160,13 @@ def _fmt(v: float, spec: str) -> str:
 def summary_markdown(rows: list[dict], name: str, today: date | None = None) -> str:
     """The markdown block appended to results/summary.md: a dated heading and one table."""
     lines = [f"## {name} ({(today or date.today()).isoformat()})", "",
-             "| method | track | seeds | success | best lap s, median (range) "
+             "| group | seeds | success | best lap s, median (range) "
              "| env steps to first lap | wall s to first lap |",
-             "|---|---|---|---|---|---|---|"]
+             "|---|---|---|---|---|---|"]
     for r in rows:
         best = "–" if not np.isfinite(r["best_lap_median"]) else (
             f"{r['best_lap_median']:.2f} ({r['best_lap_min']:.2f}–{r['best_lap_max']:.2f})")
-        lines.append(f"| {r['method']} | {r['track']} | {r['seeds']} | {r['success']} | {best} "
+        lines.append(f"| {r['label']} | {r['seeds']} | {r['success']} | {best} "
                      f"| {_fmt(r['steps_to_lap'], ',.0f')} | {_fmt(r['time_to_lap'], '.1f')} |")
     return "\n".join(lines) + "\n\n"
 
@@ -186,18 +188,26 @@ def plot_comparison(rows: list[dict], x_name: str, path: Path) -> None:
     x_label = X_AXES[x_name]
     styles = _styles(rows)
     fig, axes = plt.subplots(1, 2, figsize=(14, 6), dpi=100)
-    panels = [("best_lap", "Best lap so far (s, lower is better)"),
+    panels = [("best_lap", "Best lap so far (s, lower is better)\n"
+                           "median over seeds that have lapped; faint = not all seeds yet"),
               ("progress", "Eval progress (m along the track)")]
     for ax, (y_key, y_label) in zip(axes, panels):
         for r in rows:
-            x, med, lo, hi = aggregate(r["curves"], x_name, y_key)
+            x, med, lo, hi, n = aggregate(r["curves"], x_name, y_key)
             if not np.isfinite(med).any():
                 continue
             color, ls = styles[r["label"]]
-            n = len(r["curves"])
+            # Seeds still running at each x: where fewer than that have a value (best lap
+            # before every seed has lapped) the line is drawn faint and dashed.
+            active = aggregate(r["curves"], x_name, "progress")[4]
+            full = n >= active
+            label = f"{r['label']} (n={len(r['curves'])})"
             ax.fill_between(x, lo, hi, color=color, alpha=0.18, linewidth=0, step="post")
-            ax.step(x, med, where="post", color=color, linestyle=ls, linewidth=2,
-                    label=f"{r['label']} (n={n})")
+            ax.step(x, med, where="post", color=color, linestyle="--", linewidth=1.5,
+                    alpha=0.45, label=None if full.any() else label)
+            if full.any():
+                ax.step(x, np.where(full, med, np.nan), where="post", color=color,
+                        linestyle=ls, linewidth=2, label=label)
         ax.set_xlabel(x_label)
         ax.set_ylabel(y_label)
         ax.grid(alpha=0.3)
