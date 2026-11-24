@@ -275,11 +275,25 @@ through `x @ w` in [`EvolutionPolicy.act`](../../racer/algos/evolution.py#L52-L5
 the same products in a different order, so their actions differ in the last bit (about 2e-16).
 Over a 1,350-decision episode that difference can grow: a car that just grazed a wall in one
 episode just misses it in the other. An elite that survives a plateau is evaluated again every
-fifth generation, so counting rows would count the same genome many times; counting each distinct
-best genome once, the 14 runs in this lesson evaluated 125. For 114 of them evaluation and
-training agreed to within 0.005, and for 122 to within 0.1 (seed 0's final network: 232.74 in training,
-232.68 in evaluation). The other three genomes are all from experiment 1's two
-`mutation_std = 0.5` runs, differing by 0.63, 1.77 and 11.98. The worst is in
+fifth generation, so counting rows would count the same genome many times.
+[`docs/lessons/scripts/eval_vs_fitness.py`](scripts/eval_vs_fitness.py) counts each genome once
+per run directory (two evaluation rows of a run are the same genome when their checkpoints hold
+identical weights) and keeps the largest difference per genome. Over the 14 runs in this lesson:
+
+```
+uv run python docs/lessons/scripts/eval_vs_fitness.py runs/evolution-20261123-200006-s0 ...   # all 14 runs
+
+14 runs, 131 distinct evaluated genomes (counted per run)
+  |training - evaluation| <= 0.005: 120
+  |training - evaluation| <= 0.1:   128
+  > 0.1:   0.63  evolution-20261123-201532-s1
+  > 0.1:   1.77  evolution-20261123-201532-s1
+  > 0.1:  11.98  evolution-20261123-200845-s0
+```
+
+So most genomes match closely (seed 0's final network: 232.74 in training, 232.68 in
+evaluation), and the three that do not are all from experiment 1's two `mutation_std = 0.5`
+runs. The worst is in
 `runs/evolution-20261123-200845-s0`: from generation 12 on, its best genome earned 129.48 in
 training and 141.45 in evaluation. Every number this lesson quotes for laps and lap
 times comes from the evaluation columns.
@@ -535,10 +549,10 @@ a time, seed 1 variants four at a time, so wall times are only a rough guide. "M
   almost every child crashes immediately, because noise of 0.5 on weights of around 0.2-1 rewrites
   the network instead of adjusting it. On seed 1 it did well, a 48.78 s lap against 49.53 s for
   0.1, but it got there the same way: the best return was 16.08 for generations 4-8, 142.45 for
-  generations 9-17, then 145.78, 185.62 and 209.84 (generations 20-29), five improvements in 29
-  generations. With 0.1 on seed 1 the best return improved 15 times in its first 25 generations,
-  mostly in small steps (76.59 → 83.45 → 124.14 → 128.69 → 145.47 → 157.36 → 166.47 → ...; all
-  from `best_fitness` in the two runs' `metrics.csv`). Large mutations explore far, which can
+  generations 9-17, 145.78 at generation 18, 185.62 at 19, and 209.84 for generations 20-29:
+  five improvements in 29 generations. With 0.1 on seed 1 the best return improved 15 times in its first 25 generations,
+  a mix of jumps and small steps (16.41 → 76.59 at generation 4, then 83.45 → 124.14 → 128.69 →
+  145.47 → 157.36 → 166.47 → ...; all from `best_fitness` in the two runs' `metrics.csv`). Large mutations explore far, which can
   escape a trap, but they rarely produce a child that is a little better than its parent, and that
   is how a lap time gets polished. This is *exploration at the expense of exploitation*; it can
   pay off within a budget, as on seed 1, but it is a lottery.
