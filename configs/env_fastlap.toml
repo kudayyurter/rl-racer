@@ -1,5 +1,21 @@
-# Fast-lap variant of env.toml: same car and track physics, but the reward pushes lap time.
-# Differences from env.toml: time_cost (5x) and max_laps (3); each is marked "CHANGED" below.
+# Fast-lap variant of env.toml: same car and track physics, but the reward puts a real price on
+# lap time. Differences from env.toml: time_cost (5x) and max_episode_s (120); each is marked
+# "CHANGED" below. Lesson 08 derives both numbers.
+#
+# Why these two together. A per-step time cost only changes which driver scores best if a
+# faster driver ends its episode sooner. If every episode runs to the same time limit, the cost
+# is the same number for every driver that survives it, and the only thing it can change is how
+# attractive crashing early is. So the episode must end at the finish line (max_laps), and the
+# time limit must be long enough that it does not cut a lapping driver off first.
+# (An earlier version of this file set max_laps = 3 with the 90 s limit: three twisty laps take
+# at least 120 s, so every surviving episode ran exactly 90 s and the 5x time cost did nothing
+# but make crashing cheaper. Lesson 08 shows the arithmetic.)
+#
+# What this does NOT change: methods that bootstrap through truncation (A2C, PPO, SB3) treat
+# reaching max_laps like the time limit, as "the car could have gone on", so for them the time
+# cost is never a price on episode length. For them it is exactly a bonus of
+# time_cost / (1 - gamma) on every crash or wrong-way ending (lesson 08).
+#
 # Every field of EnvConfig and CarParams is listed so this file doubles as documentation.
 # Units: meters, seconds, radians unless noted.
 
@@ -10,15 +26,18 @@ ray_spread_deg = 180.0     # angle covered by the rays, degrees
 ray_range = 60.0           # max sensor distance, m
 progress_scale = 0.1       # reward per meter of track progress
 crash_penalty = 10.0       # reward lost on leaving the track
-# CHANGED (was 0.01): every second costs more than the extra progress a cautious line earns,
-# so the agent stops creeping around the track and starts chasing lap time.
+# CHANGED (was 0.01): 0.05 per decision = 0.75 per second. Two laps end the episode, so each
+# second saved per lap is worth 2 x 0.75 = 1.5 return (env.toml: 0.3). Progress pays 0.1 per m,
+# so a car averaging more than 0.75 / 0.1 = 7.5 m/s still earns more by driving on than by
+# ending the episode at once (lesson 08's experiment raises this to 20x and watches it break).
 time_cost = 0.05           # reward lost per agent step (encourages speed)
 lap_bonus = 10.0           # reward for completing a lap
 wrong_way_m = 15.0         # backwards progress (m) that ends the episode
-max_episode_s = 90.0       # episode time limit, s
-# CHANGED (was 2): a third lap gives more data on a policy's best line and makes a rushed lap
-# one that still has to be repeated, which rewards consistency.
-max_laps = 3               # laps that end the episode successfully
+# CHANGED (was 90): two laps finish inside the limit for any driver lapping in 60 s or less, so
+# episode length is 2 x lap time and the time cost is a price on lap time (twisty laps take
+# 40-56 s once a policy can lap; at 90 s, drivers slower than 45 s were cut off first).
+max_episode_s = 120.0      # episode time limit, s
+max_laps = 2               # laps that end the episode successfully
 random_start = false       # start at a random point on the track
 
 [car]

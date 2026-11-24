@@ -68,9 +68,16 @@ def test_shipped_configs_load():
     load_method_config(EvolutionConfig, "configs/evolution.toml")
 
 
-def test_env_fastlap_differs_from_env_only_in_time_cost_and_max_laps():
+def test_env_fastlap_differs_from_env_only_in_time_cost_and_time_limit():
     base = dataclasses.asdict(load_env_config("configs/env.toml"))
     fast = dataclasses.asdict(load_env_config("configs/env_fastlap.toml"))
     changed = {k for k in base if base[k] != fast[k]}
-    assert changed == {"time_cost", "max_laps"}
-    assert fast["time_cost"] == pytest.approx(5 * base["time_cost"]) and fast["max_laps"] == 3
+    assert changed == {"time_cost", "max_episode_s"}
+    assert fast["time_cost"] == pytest.approx(5 * base["time_cost"])
+
+
+def test_env_fastlap_laps_finish_inside_time_limit():
+    # The time cost can only pay for speed if a faster car ends its episode sooner: every
+    # driver lapping in 60 s or less must finish max_laps before the time limit cuts it off.
+    fast = load_env_config("configs/env_fastlap.toml")
+    assert fast.max_laps * 60.0 <= fast.max_episode_s
