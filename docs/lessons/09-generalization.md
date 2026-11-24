@@ -8,10 +8,11 @@ on twisty alone, the same test. The results were not the ones the setup was buil
 
 - **The random-track PPO laps held-out tracks, on every seed.** The final checkpoints drove both
   laps on 6, 8 and 7 of the 10 held-out tracks. That is the spec's bar, met.
-- **The twisty-only PPO did as well or better on the same tracks.** Its final checkpoints drove
-  both laps on 10, 10 and 7 of them. Nothing here shows the twisty-only driver had overfitted twisty
-  in a way the held-out tracks could expose. The held-out tracks are easier than twisty in the one
-  way that matters most for this car: none has a hairpin.
+- **The twisty-only PPO did as well or better on the same tracks.** At the same 2.5M-step budget
+  its checkpoints drove both laps on 9, 10 and 7 of them (its 4.5M-step finals on 10, 10 and 7).
+  On the held-out set, as a group, the twisty-only drivers showed no overfitting to twisty. One
+  seed did over-specialize, and experiment 2 finds a direction bias. The held-out tracks are
+  easier than twisty in the one way that matters most for this car: none has a hairpin.
 - **The random-track PPO lost twisty.** One seed lapped twisty early in its run, at 39.72 s,
   faster than any twisty-trained PPO in lesson 07, and stopped lapping it before the halfway point.
   At the end, all three crash at the first hairpin.
@@ -59,7 +60,9 @@ score, the held-out set becomes part of training (a validation set), and its sco
 an honest test. So every checkpoint in this lesson is chosen without looking at the held-out
 tracks: either the **final** one, or the **best** one by the twisty evaluation that training logs
 (most laps, then fastest lap, then most meters; for a run that lapped twisty, its fastest-lap
-checkpoint). The same rule applies to both groups of runs.
+checkpoint). The same rule applies to both groups of runs. The flip side: twisty picks the "best"
+checkpoint, so that checkpoint's own twisty figures, such as seed 0's 39.72 s below (the best of
+245 evaluations), are optimistic for both groups, like lesson 07's per-run fastest laps.
 
 ## Random tracks and the held-out set
 
@@ -155,7 +158,8 @@ runs/ppo-20261123-235524-s2 (iteration 1221): window 128 decisions = 8.53 s per 
 ```
 
 (The 0 m is real: on one of seed 2's training tracks the deterministic driver never leaves the
-start line. During training the noisy cars do move.) So the training data is the first ~170 m of
+start line. We did not measure whether the noisy training cars, which sample actions around that
+mean, get moving there.) So the training data is the first ~170 m of
 each track, from a standing start, again and again. The car never drives the other four fifths of
 any training track, never completes a lap during training, and only rarely ends an episode: the
 `train_return_mean` column is empty on 927, 941 and 968 of the three runs' 1,221 iterations,
@@ -199,8 +203,9 @@ furthest round it.)
 
 **The spec's bar, checked.** Random-track PPO must complete laps on held-out tracks. Every seed
 does, final checkpoint included: 6, 8 and 7 of the 10 tracks driven both laps. So the bar passes.
-The partial failure is reported alongside it: no final checkpoint laps twisty, and on two of the
-three seeds the held-out score stopped improving after the first quarter.
+The partial failure is reported alongside it: no final checkpoint laps twisty, and only seed 1's
+held-out score kept rising through the run (seed 2 plateaued from the second quarter on, and seed 0
+barely moved).
 
 **It is noisy, and it does not settle.** The held-out mean jumps between evaluations: seed 0 went
 from 1.60 at iteration 150 to 0.00 at iteration 155 and back to 1.80 at iteration 160. Per quarter
@@ -212,8 +217,9 @@ of each run (`heldout_history.py`), the median held-out mean was:
 | 1 | 0.90 | 1.20 | 1.60 | 1.80 |
 | 2 | 1.00 | 1.40 | 1.40 | 1.40 |
 
-Seed 1 kept improving all run. Seeds 0 and 2 stopped improving after the first quarter, and seed
-0's perfect evaluations all came before the halfway point. These are single deterministic
+Seed 1 kept improving all run. Seed 2 rose in the second quarter, then stayed at 1.40. Seed 0
+barely moved (1.00 for three quarters, 1.20 in the last), and all its perfect evaluations came in
+the first half. These are single deterministic
 episodes per track, so one track changing its mind moves the mean by 0.1 or 0.2. Read the trend,
 not individual points.
 
@@ -271,10 +277,11 @@ iteration 305. The last came at iteration 530 (1,085,440 steps), and none of the
 after it lapped. Seeds 1 and 2 never lapped twisty. The best seed 1 did was 313.5 m and seed 2
 296.1 m, both at the hairpin.
 
-So a driver that had never seen a hairpin could, for a while, drive twisty faster than drivers
-trained on it. Its hairpin skill came from somewhere else, perhaps from tight kinks like those on
-10002 and 10009, and it was not stable. Nothing in the training data rewards it directly, since
-no training track has a hairpin.
+So a driver that, as far as we measured, never trained on a hairpin could, for a while, drive
+twisty faster than drivers trained on it. Its hairpin skill came from somewhere else, perhaps from
+tight kinks like those on 10002 and 10009, and it was not stable. Probably nothing in the training
+data rewards it directly: none of the training tracks we measured (the first 200 of a seed-0 run)
+turns more than 124° in 60 m.
 
 ## The contrast: PPO trained on twisty only
 
@@ -313,11 +320,12 @@ here. Three reasons fit what was measured:
 ## What transfers, and what does not
 
 - **Reaction maps transfer within the kind of track they learned.** Both kinds of driver lap most
-  held-out tracks: the twisty-only finals drove both laps in 27 of 30 track-runs, the random-track
-  finals in 21 of 30.
+  held-out tracks. At the same 2.5M-step budget, the twisty-only checkpoints drove both laps in 26
+  of 30 track-runs and the random-track finals in 21 of 30. The twisty-only 4.5M-step finals drove
+  27 of 30.
 - **Held-out success does not certify twisty.** The random-track finals lap 6-8 held-out tracks
-  each and crash at twisty's hairpin, a corner shape no training track has. Held-out tracks from
-  the same generator test the generator's range, not the world's.
+  each and crash at twisty's hairpin, a corner shape none of the measured training tracks has.
+  Held-out tracks from the same generator test the generator's range, not the world's.
 - **A rare skill is fragile.** Seed 0's 39.72 s twisty lap came early and went: its last lapping
   evaluation was at iteration 530 of 1,221. Nothing in the training distribution kept it.
 - **What the training data covers matters more than how many tracks it comes from.** 2,500,608
@@ -370,7 +378,7 @@ Budget **1,000,000 env steps** (`--set env_steps_budget=1000000`), seeds 0 and 1
 **Predict.** More tracks or more of each track? With `track_every = 10` the policy sees far fewer
 road shapes. Do you expect it to overfit those 49 tracks and do worse on the held-out set, or does
 driving whole laps at speed teach more than meeting more starting stretches? What about twisty's
-hairpin, which neither setting ever trains on?
+hairpin, which (as far as we measured) neither setting trains on?
 
 **Run.**
 
@@ -385,11 +393,15 @@ uv run python docs/lessons/scripts/rollout_reach.py runs/<run>
 <details><summary>What we got</summary>
 
 Four arms, 2026-11-23 and 24, sharing the machine with the three main runs. The 1M-step runs took
-499 s (`track_every = 1`) and 743 and 736 s (`track_every = 10`), over the 5-minute target because
-of that sharing (the held-out evaluations also slow random-track runs down; see
-`configs/budgets.md`). For `track_every = 1`, seed 0 was run on its own
+499 s (`track_every = 1`) and 743 and 736 s (`track_every = 10`). Expect more than 5 minutes on
+your own machine too. Every evaluation also drives the 10 held-out tracks, so 1M steps at
+`configs/budgets.md`'s 3.0k steps/s is about 333 s even on an idle machine. And `track_every = 10`
+took about 1.5 times as long as `track_every = 1` under the same sharing, most likely because its
+better policies drive full two-lap evaluation episodes instead of crashing early (not measured
+separately). For `track_every = 1`, seed 0 was run on its own
 (`runs/ppo-20261123-235707-s0`); its `metrics.csv` turned out identical, row for row except wall
-time, to the first 489 rows of the main seed 0 run, because PPO does not depend on its budget until
+time, to the first 488 rows of the main seed 0 run (row 489 is the 1M run's end-of-budget evaluation,
+which the main run does not have), because PPO does not depend on its budget until
 it stops. So seed 1's `track_every = 1` arm is the main seed 1 run up to 1,001,472 steps
 (`heldout_history.py --until 1001472`, 97 evaluations; its last checkpoint inside the budget is
 iteration 485) instead of a duplicate run.
@@ -401,19 +413,22 @@ iteration 485) instead of a duplicate run.
 | 1 | 1 | `runs/ppo-20261123-235522-s1` (to 1M) | 489 | 143,360 steps | 5 of 97 | 0 of 97 | – | 1.40 (7 / 10), iteration 485 | crash at 296.0 m |
 | 10 | 1 | `runs/ppo-20261124-000011-s1` | 49 | 143,360 steps | 37 of 98 | 45 of 98 | **39.42 s** | 1.80 (9 / 10) | **2 laps, 41.22 s** |
 
-- **Fewer tracks, driven whole, won on both seeds and on every measure but one** (seed 0's
-  fastest twisty lap: 39.72 s for `track_every = 1`, 39.82 s for 10). Held-out evaluations
+- **Fewer tracks, driven whole, won on both seeds on most measures.** The exceptions are seed 0's
+  fastest twisty lap (39.72 s for `track_every = 1`, 39.82 s for 10) and seed 1's first perfect
+  held-out evaluation (143,360 steps in both arms, a tie). Held-out evaluations
   at a perfect 2.00: 32 and 37 against 9 and 5. Twisty evaluations that lapped: 38 and 45 against
   17 and 0. Both `track_every = 10` finals lap twisty; neither `track_every = 1` final does. Seed
   1's `track_every = 1` arm never lapped twisty in 1M steps, or in its full 2.5M.
 - **The coverage changed, as intended.** `rollout_reach.py` on the finals: 8.53 s per track and a
   median 185 m (21% of a lap) for `track_every = 1`, seed 0; 85.33 s and 1,707 m (seed 0) and
   1,674 m (seed 1), more than a full lap, for `track_every = 10`.
-- **Twisty laps without ever training on a hairpin.** The `track_every = 10` seeds first lapped
-  twisty at 174,080 and 143,360 steps, with fastest laps of 39.82 and 39.42 s, faster than every
+- **Twisty laps without training on a hairpin** (as far as we measured). The `track_every = 10`
+  seeds first lapped twisty at 174,080 and 143,360 steps, with fastest laps of 39.82 and 39.42 s, faster than every
   fixed-track PPO and SB3 lap in lesson 07 (41.53-42.93 s), in under a quarter of their budget. Their
   quarter medians of the twisty lap fell from 43.15 / 42.07 s to 40.33 / 40.42 s
-  (`heldout_history.py`), so they were still improving when the budget ran out.
+  (`heldout_history.py`), but the drop came early: from Q3 to Q4 they went 40.43 -> 40.33 s and
+  40.13 -> 40.42 s, so lap times had levelled off. Seed 0 was still getting more reliable (two-lap
+  twisty evaluations: 7 in Q3, 19 in Q4); seed 1 less clearly (11, then 13).
 - **`track_every = 1`, seed 0, collapsed late:** its held-out mean was 0.0-0.4 for every evaluation
   from iteration 370 to 455, then climbed back to 1.80 by iteration 485. The longer main run logged
   the same rows; after them it reached 2.00 once more, at iteration 535, and never again.
@@ -465,8 +480,12 @@ Held-out mean laps (0-2), normal / mirrored:
 - **Mirroring hurt 10 of the 12 checkpoints,** and the two it did not hurt are twisty-only seed 1.
   The mean over the 12 dropped from 1.75 to 0.98. Neither kind of driver learned a symmetric skill
   from mostly-left tracks.
-- **The random-track drivers suffered more.** Their mean over six checkpoints went from 1.63 to
-  0.75. The twisty-only ones went from 1.87 to 1.22. No random-track checkpoint laps mirrored
+- **The random-track drivers suffered more, though at equal budget only a little more.** The
+  table compares 2.5M-step random-track runs with 4.5M-step twisty-only ones. Over all six
+  checkpoints per group, random-track went from 1.63 to 0.75 and twisty-only from 1.87 to 1.22. At
+  the same 2.5M budget (twisty-only iteration 1220, mirrored: 1.20, 2.00 and 0.00, against 1.80,
+  2.00 and 1.40 unmirrored), the twisty-only mean went from 1.73 to 1.07 and the random-track finals'
+  from 1.40 to 0.67. That keeps 62% against 48%. No random-track checkpoint laps mirrored
   twisty. Seeing 1,221 tracks did not help when every one of them ran counter-clockwise. Diversity
   only covers what the generator varies, and this generator never varies the direction.
 - **Twisty-only seed 1 is mirror-proof:** 2.00 on the mirrored held-out set with both checkpoints,
