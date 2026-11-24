@@ -39,6 +39,14 @@ def _drive(args: argparse.Namespace) -> int:
                      frames=args.frames)
 
 
+def _watch(args: argparse.Namespace) -> int:
+    # Imported here so `racer --help` doesn't load raylib or torch.
+    from racer.watch import run_watch
+
+    return run_watch(args.run_dir, args.track, reload_s=args.reload_s, n_ghosts=args.ghosts,
+                     screenshot=args.screenshot, frames=args.frames)
+
+
 # One line per learning method: name -> module. Each module defines CONFIG_CLASS (its config
 # dataclass), EXTRA_COLUMNS (extra metrics.csv columns) and train(cfg, env_cfg, run).
 TRAIN_METHODS = {
@@ -101,6 +109,19 @@ def build_parser() -> argparse.ArgumentParser:
     drive.add_argument("--frames", type=int, default=30,
                        help="frames to render before the screenshot (default 30)")
     drive.set_defaults(handler=_drive)
+
+    watch = subparsers["watch"]
+    watch.add_argument("run_dir", metavar="RUN_DIR", help="run directory, e.g. runs/evolution-...")
+    watch.add_argument("--track", help="track to drive on (default: the track the run trains on)")
+    watch.add_argument("--reload-s", type=float, default=3.0,
+                       help="seconds between checks for a new checkpoint (default 3)")
+    watch.add_argument("--ghosts", type=int, default=5,
+                       help="how many of the latest ghost laps to replay (default 5)")
+    watch.add_argument("--screenshot", metavar="PATH",
+                       help="render --frames frames, save a PNG to PATH, and exit")
+    watch.add_argument("--frames", type=int, default=30,
+                       help="frames to render before the screenshot (default 30)")
+    watch.set_defaults(handler=_watch)
 
     _add_train_parser(subparsers["train"])
     return parser

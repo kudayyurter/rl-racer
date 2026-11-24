@@ -5,6 +5,10 @@ Shapes are built once in the car's own frame (x forward, y left, meters) and the
 moved per car, using the same heading convention as ``racer.car``. The body is the physics
 rectangle (``CarParams.length`` x ``width``) with rounded corners, so what you see is what
 the crash check uses, give or take the corner rounding.
+
+Ghosts are recorded best laps (``runlog.Ghost``) replayed as faded cars. A recording is a list
+of poses at the times the policy acted, so ``ghost_pose_at`` interpolates between them to get
+a smooth pose at any moment of the lap.
 """
 
 import numpy as np
@@ -24,6 +28,11 @@ CAR_COLORS = [
     (245, 124, 40),    # orange
     (160, 120, 240),   # violet
 ]
+# Ghosts share one muted blue-grey: they must never be mistaken for the live (yellow) car, and
+# fading by age reads more clearly than a rainbow of colours.
+GHOST_COLOR = (214, 226, 250)
+GHOST_ALPHA_OLDEST = 0.3      # faintest ghost
+GHOST_ALPHA_NEWEST = 0.75     # most recent ghost, still see-through
 GLASS = (28, 36, 50)          # windshield and rear window
 SHADOW = (0, 0, 0, 90)        # translucent black, so the ground shows through
 SHADOW_OFFSET_M = 0.7         # shadow shift down-right on screen, meters (scales with zoom)
@@ -104,3 +113,43 @@ def _fill_convex(screen_pts: np.ndarray, color) -> None:
     """Fill a convex polygon given as screen points (K, 2), as a triangle fan."""
     pts = [tuple(q) for q in screen_pts.tolist()]
     rl.draw_triangle_fan(pts, len(pts), color)
+
+
+def ghost_pose_at(t: np.ndarray, poses: np.ndarray, time: float) -> np.ndarray:
+    """Pose (3,) = (x, y, heading) of a recording ``poses`` (T, 3) taken at times ``t`` (T,).
+
+    Linear interpolation between the two samples around ``time``. Heading goes the short way
+    round: halfway from 3.1 to -3.1 rad is +-pi (a 0.08 rad turn), not 0 (a 6.2 rad spin).
+    Before the first sample the first pose is held; after the last, the last pose is held, so
+    a ghost that has finished its lap waits on the line.
+    """
+    t = np.asarray(t, dtype=float)
+    poses = np.asarray(poses, dtype=float)
+    if time <= t[0]:
+        return poses[0].copy()
+    if time >= t[-1]:
+        return poses[-1].copy()
+    k = int(np.searchsorted(t, time, side="right")) - 1   # t[k] <= time < t[k + 1]
+    f = (time - t[k]) / (t[k + 1] - t[k])
+    a, b = poses[k], poses[k + 1]
+    turn = (b[2] - a[2] + np.pi) % (2 * np.pi) - np.pi      # shortest signed heading change
+    return np.array([a[0] + f * (b[0] - a[0]), a[1] + f * (b[1] - a[1]), a[2] + f * turn])
+
+
+def ghost_alphas(n: int) -> list[float]:
+    """Opacity for ``n`` ghosts ordered oldest first: older ghosts are more transparent."""
+    if n == 1:
+        return [GHOST_ALPHA_NEWEST]
+    return [float(a) for a in np.linspace(GHOST_ALPHA_OLDEST, GHOST_ALPHA_NEWEST, n)]
+
+
+def draw_ghosts(ghosts: list, time: float, p: CarParams, camera) -> None:
+    """Draw ``ghosts`` (``runlog.Ghost``, oldest first) where each was ``time`` s into its lap.
+
+    Oldest first, so the newest (most opaque) ghost ends up on top.
+    """
+    for ghost, alpha in zip(ghosts, ghost_alphas(len(ghosts))):
+        x, y, heading = ghost_pose_at(ghost.t, ghost.poses, time)
+        state = CarState(pos=np.array([[x, y]]), heading=np.array([heading]),
+                         speed=np.zeros(1), steer=np.zeros(1))
+        draw_cars(state, p, camera, [GHOST_COLOR], alpha=alpha)

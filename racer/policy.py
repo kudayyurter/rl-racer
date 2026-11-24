@@ -55,7 +55,15 @@ def load_policy(path: str | Path) -> Policy:
     """Read a checkpoint file and build the Policy its method describes."""
     # weights_only=False: our checkpoints hold plain dicts with numpy arrays and config dicts,
     # which the safe loader rejects. We only ever load files this project wrote itself.
-    ckpt = torch.load(path, weights_only=False)
+    return policy_from_checkpoint(torch.load(path, weights_only=False))
+
+
+def policy_from_checkpoint(ckpt: dict) -> Policy:
+    """Build the Policy a checkpoint dict describes.
+
+    Separate from ``load_policy`` for callers that also want the checkpoint's other fields
+    (the watch viewer shows its iteration and env steps) without reading the file twice.
+    """
     method = ckpt["method"]
     if method not in _LOADERS and method in _METHOD_MODULES:
         importlib.import_module(_METHOD_MODULES[method])
