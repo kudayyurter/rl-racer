@@ -108,6 +108,11 @@ class BatchSim:
         """(N,) seconds since each car spawned."""
         return self._ticks * self.cfg.dt
 
+    @property
+    def traveled(self) -> np.ndarray:
+        """(N,) signed meters driven along the track since each car spawned (read-only copy)."""
+        return self._traveled.copy()
+
     # ---------------------------------------------------------------- spawning
 
     def set_track(self, track: Track) -> None:

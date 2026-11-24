@@ -40,3 +40,32 @@ def wall_self_intersects(wall: np.ndarray) -> bool:
                         a[others][None], b[others][None])[0]:
             return True
     return False
+
+
+class ScriptedOvalPolicy:
+    """A hand-written P-controller that laps the oval, wrapped as a ``Policy`` (obs -> action).
+
+    It sees only the observation, like a learned policy. Steer against the heading error and
+    the sideways offset. Ray 0 points right (negative angle) and the last ray points left, so
+    (ray 0 - last ray) / 2 is how far the car sits left of the centerline. Throttle is 0.4 but
+    coasts above 20 m/s, because the grip
+    limit only allows about 24 m/s round the end turns.
+    """
+
+    def __init__(self, cfg, track):
+        self.ray_range = cfg.ray_range
+        self.half_width = track.width / 2
+        self.max_speed = cfg.car.max_speed
+
+    def act(self, obs: np.ndarray) -> np.ndarray:
+        heading_error = obs[:, -1] * np.pi
+        lateral = (obs[:, 0] - obs[:, -4]) / 2 * self.ray_range  # right ray - left ray
+        steer = np.clip(-3.0 * heading_error - 0.5 * lateral / self.half_width, -1.0, 1.0)
+        throttle = np.where(obs[:, -3] * self.max_speed < 20.0, 0.4, 0.0)
+        return np.stack([steer, throttle], axis=1)
+
+    def activations(self, obs):
+        return [obs, self.act(obs)]
+
+    def layer_weights(self):
+        return []
