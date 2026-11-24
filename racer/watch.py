@@ -167,7 +167,7 @@ class WatchSession:
                 self.error = (f"checkpoint expects {expected} observation inputs, this env "
                               f"gives {given} (config.json env mismatch?)")
                 return
-            policy = policy_from_checkpoint(ckpt)
+            policy = policy_from_checkpoint(ckpt, path)
             policy.act(self.obs)   # fail here, not mid-drive, if it can't read our observations
         except Exception as e:   # anything: the viewer must keep running
             self.error = f"could not load checkpoint: {type(e).__name__}: {e}"

@@ -54,6 +54,7 @@ TRAIN_METHODS = {
     "reinforce": "racer.algos.reinforce",
     "a2c": "racer.algos.a2c",
     "ppo": "racer.algos.ppo",
+    "sb3": "racer.algos.sb3_ppo",
 }
 
 
