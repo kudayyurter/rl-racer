@@ -4,7 +4,6 @@ import dataclasses
 
 import pytest
 
-from racer.cli import main
 from racer.config import ConfigError, EnvConfig, from_dict, load_env_config
 
 
@@ -34,12 +33,6 @@ def test_list_becomes_tuple_for_tuple_fields():
         hidden: tuple[int, ...] = (64, 64)
 
     assert from_dict(Net, {"hidden": [32, 16]}).hidden == (32, 16)
-
-
-def test_cli_stub_returns_one(capsys):
-    # Any subcommand that is still a stub (drive became real in Task 7).
-    assert main(["compare"]) == 1
-    assert "not implemented yet" in capsys.readouterr().out
 
 
 # ---- value type checking (overrides come from the command line as untyped text)

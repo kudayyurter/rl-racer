@@ -1,8 +1,7 @@
 """Command-line entry point: the ``racer`` console script.
 
-Subcommands not built yet are stubs; later tasks replace the stubs with real
-implementations. Keeping the full command list here from the start means the
-CLI surface is visible (and ``racer --help`` works) from day one.
+Every subcommand imports its implementation lazily inside its handler, so
+``racer --help`` stays fast and does not load raylib, torch or matplotlib.
 """
 
 import argparse
@@ -16,11 +15,6 @@ COMMANDS = {
     "bench": "benchmark simulation speed",
     "gen-track": "generate a random track",
 }
-
-
-def _not_implemented(args: argparse.Namespace) -> int:
-    print(f"racer {args.command}: not implemented yet")
-    return 1
 
 
 def _bench(args: argparse.Namespace) -> int:
@@ -45,6 +39,13 @@ def _watch(args: argparse.Namespace) -> int:
 
     return run_watch(args.run_dir, args.track, reload_s=args.reload_s, n_ghosts=args.ghosts,
                      screenshot=args.screenshot, frames=args.frames)
+
+
+def _compare(args: argparse.Namespace) -> int:
+    # Imported here so `racer --help` doesn't load matplotlib.
+    from racer.compare import run_compare
+
+    return run_compare(args.run_dirs, args.out, args.name)
 
 
 def _gen_track(args: argparse.Namespace) -> int:
@@ -105,7 +106,6 @@ def build_parser() -> argparse.ArgumentParser:
     subparsers = {}
     for name, help_text in COMMANDS.items():
         subparsers[name] = sub.add_parser(name, help=help_text)
-        subparsers[name].set_defaults(handler=_not_implemented)
 
     subparsers["bench"].add_argument("--seconds", type=float, default=3.0,
                                      help="wall time per batch size (default 3)")
@@ -134,6 +134,13 @@ def build_parser() -> argparse.ArgumentParser:
     watch.add_argument("--frames", type=int, default=30,
                        help="frames to render before the screenshot (default 30)")
     watch.set_defaults(handler=_watch)
+
+    compare = subparsers["compare"]
+    compare.add_argument("run_dirs", nargs="+", metavar="RUN_DIR", help="finished run directories")
+    compare.add_argument("--out", default="results", help="output directory (default results)")
+    compare.add_argument("--name", default="compare",
+                         help="file prefix and summary heading (default compare)")
+    compare.set_defaults(handler=_compare)
 
     gen = subparsers["gen-track"]
     gen.add_argument("--seed", type=int, required=True, help="seed: the same seed gives the same track")
