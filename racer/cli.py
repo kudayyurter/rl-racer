@@ -51,6 +51,7 @@ def _watch(args: argparse.Namespace) -> int:
 # dataclass), EXTRA_COLUMNS (extra metrics.csv columns) and train(cfg, env_cfg, run).
 TRAIN_METHODS = {
     "evolution": "racer.algos.evolution",
+    "reinforce": "racer.algos.reinforce",
 }
 
 

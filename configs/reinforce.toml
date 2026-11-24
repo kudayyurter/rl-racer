@@ -1,0 +1,11 @@
+# REINFORCE: plain policy gradient with a Gaussian policy (no baseline, no tricks).
+track = "twisty"           # tracks/<name>.json, or a path
+n_cars = 16                # cars driving in parallel while collecting
+episodes_per_batch = 32    # finished episodes per gradient step
+gamma = 0.99               # discount factor
+lr = 3e-4                  # Adam learning rate
+hidden = [64, 64]          # actor hidden layer sizes
+# Placeholder: Task 17 fixes the real budget. Counts car-decisions.
+env_steps_budget = 2_000_000
+eval_every = 5             # iterations between deterministic evaluations + checkpoints
+seed = 0
