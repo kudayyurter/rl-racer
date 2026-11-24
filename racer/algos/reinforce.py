@@ -78,17 +78,21 @@ register_loader("reinforce", _load_policy)
 
 # --------------------------------------------------------------------------- 1. COLLECT
 
-def collect_batch(sim: BatchSim, actor: GaussianActor, obs: np.ndarray, n_episodes: int):
-    """Drive all cars until ``n_episodes`` episodes have finished.
+def collect_batch(sim: BatchSim, actor: GaussianActor, n_episodes: int):
+    """Reset every car, then drive them all until ``n_episodes`` episodes have finished.
+
+    Resetting first matters: cars left over from the previous batch are mid-episode, and the
+    first episode each would close here is only that episode's tail. Starting from spawn makes
+    every collected episode a whole one, with its return counted from the first step.
 
     Each car keeps its own growing buffer. When a car's step reports terminated or truncated,
     that step's reward is the episode's last, so we close the episode and start a new buffer
     (the sim has already respawned the car). Returns:
       episodes: list of (obs (T, D), actions (T, 2), rewards (T,)) for finished episodes
-      obs:      the observations to continue from next batch
       steps:    car-decisions simulated, including those in dropped unfinished buffers
     """
     n = sim.n_cars
+    obs = sim.reset()
     buf_obs: list[list[np.ndarray]] = [[] for _ in range(n)]
     buf_act: list[list[np.ndarray]] = [[] for _ in range(n)]
     buf_rew: list[list[float]] = [[] for _ in range(n)]
@@ -107,7 +111,7 @@ def collect_batch(sim: BatchSim, actor: GaussianActor, obs: np.ndarray, n_episod
                                  np.array(buf_rew[i])))
                 buf_obs[i], buf_act[i], buf_rew[i] = [], [], []
         obs = result.obs
-    return episodes, obs, steps
+    return episodes, steps
 
 
 # --------------------------------------------------------------------------- 2. RETURNS
@@ -149,12 +153,11 @@ def train_reinforce(cfg: ReinforceConfig, env_cfg: EnvConfig, run: RunDir) -> No
           f"batch, actor {obs_dim(env_cfg)}-{'-'.join(map(str, cfg.hidden))}-2")
 
     start, env_steps, iteration = time.time(), 0, 0
-    obs = sim.reset()
     while env_steps < cfg.env_steps_budget:
         iteration += 1
 
         # 1. COLLECT
-        episodes, obs, steps = collect_batch(sim, actor, obs, cfg.episodes_per_batch)
+        episodes, steps = collect_batch(sim, actor, cfg.episodes_per_batch)
         env_steps += steps
 
         # 2. RETURNS (per episode, so reward-to-go never leaks across an episode boundary)

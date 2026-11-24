@@ -3,12 +3,15 @@
 import numpy as np
 import torch
 
-from racer.algos.reinforce import EXTRA_COLUMNS, ReinforceConfig, reinforce_loss, train_reinforce
+from racer.algos.reinforce import (EXTRA_COLUMNS, ReinforceConfig, collect_batch, reinforce_loss,
+                                   train_reinforce)
 from racer.cli import build_parser
 from racer.config import EnvConfig
 from racer.nets_torch import GaussianActor
 from racer.policy import load_policy
 from racer.runlog import RunDir
+from racer.sim import BatchSim, obs_dim
+from racer.track import load_track
 
 
 def test_reinforce_gradient_direction():
@@ -27,7 +30,7 @@ def test_reinforce_gradient_direction():
         opt.step()
     after = actor.mean(obs[:1])[0, 0].item()
     assert before < 0.3, "bandit setup: the mean should start well below the 0.5 optimum"
-    assert after - before >= 0.2
+    assert abs(after - 0.5) < 0.1
 
 
 def test_reinforce_smoke(tmp_path):
@@ -47,3 +50,16 @@ def test_reinforce_smoke(tmp_path):
 def test_cli_knows_reinforce():
     args = build_parser().parse_args(["train", "reinforce", "--set", "track=oval"])
     assert args.method == "reinforce"
+
+
+def test_every_episode_starts_at_a_spawn():
+    """Each batch must hold whole episodes: no tails of episodes begun in the previous batch."""
+    torch.manual_seed(0)
+    track = load_track("oval")
+    sim = BatchSim(track, EnvConfig(), n_cars=4, seed=0, auto_reset=True)
+    actor = GaussianActor(obs_dim(EnvConfig()), 2, (8,))
+    spawn_obs = sim.reset()[0]  # random_start is off, so every spawn gives this observation
+    for _ in range(3):
+        episodes, _ = collect_batch(sim, actor, 4)
+        for ep_obs, _, _ in episodes:
+            assert np.allclose(ep_obs[0], spawn_obs)
