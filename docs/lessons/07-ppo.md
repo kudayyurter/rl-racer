@@ -779,5 +779,6 @@ uv run racer train ppo --set env_steps_budget=1500000 --set lam=1.0
 | [`test_sb3_config_matches_ppo_toml`](../../tests/test_sb3.py#L40-L57) | every setting shared by `ppo.toml` and `sb3.toml` is the same number |
 | [`test_vec_env_done_step_semantics`](../../tests/test_sb3.py#L129-L165) | SB3's vector env reports crashes and time limits the way SB3 expects, so it bootstraps truncation like we do |
 
-Next: 08 · Fastest lap (coming): both PPOs learned to lap twisty in about 100,000 steps and
-ended the run slower than their best checkpoints. Lesson 08 asks what the reward actually pays for.
+Next: [08 · Fastest lap](08-fastest-lap.md): both PPOs learned to lap twisty in about 100,000 steps
+and ended the run slower than their best checkpoints. Lesson 08 asks what the reward actually pays
+for, raises the price of time, and finds out why that does not help.
