@@ -1,7 +1,6 @@
 # Fast-lap variant of env.toml: same car and track physics, but the reward pushes lap time.
 # Differences from env.toml: time_cost (5x) and max_laps (3); each is marked "CHANGED" below.
-# Default racing-environment configuration. Every field of EnvConfig and
-# CarParams is listed so this file doubles as documentation.
+# Every field of EnvConfig and CarParams is listed so this file doubles as documentation.
 # Units: meters, seconds, radians unless noted.
 
 dt = 0.016666666666666666  # physics step, s (1/60); independent of rendering

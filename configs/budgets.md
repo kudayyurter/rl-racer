@@ -33,4 +33,7 @@ Oval note: lessons need REINFORCE to lap the oval on every seed, which needed mo
 with SB3 batched it does (4.5M is ~900 s), so the equal-budget oval runs use 4.5M. If REINFORCE still
 does not lap reliably, raise the budget for all methods together; do not give one method its own.
 
+Timing caveat: the ~900 s for sb3 comes from the first ~60 s of a run. Evaluation episodes get longer as
+policies improve, so full runs may finish somewhat past 15 min.
+
 Lesson experiments are separate (<= ~5 min each) and set their own budget per experiment.

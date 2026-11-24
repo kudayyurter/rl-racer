@@ -84,17 +84,46 @@ def test_vec_env_matches_racer_env_step_by_step():
     vec.reset()
     n_trunc = n_crash = 0
     for a in acts:
-        _, r, term, trunc, _ = env.step(a)
+        eobs, r, term, trunc, einfo = env.step(a)
         vec.step_async(a[None])
-        _, vr, vdone, vinfo = vec.step_wait()
+        vobs, vr, vdone, vinfo = vec.step_wait()
+        assert vinfo[0]["laps"] == einfo["laps"]
+        assert vinfo[0]["lap_completed"] == einfo["lap_completed"]
+        # On a done step RacerEnv returns the final obs; the vec env returns the respawn obs
+        # and keeps the final one in terminal_observation.
+        done_obs = vinfo[0]["terminal_observation"] if vdone[0] else vobs[0]
+        assert np.allclose(done_obs, eobs)
         assert vr[0] == np.float32(r) and vr.dtype == np.float32
         assert bool(vdone[0]) == (term or trunc)
         assert vinfo[0]["TimeLimit.truncated"] == (trunc and not term)
         n_trunc += trunc
         n_crash += term
         if term or trunc:
-            env.reset()
+            robs, _ = env.reset()
+            assert np.allclose(vobs[0], robs)  # respawn obs
     assert n_trunc >= 1 and n_crash >= 1
+
+
+def test_laps_reported_on_the_done_step():
+    """A lap-ending episode must report its final lap count, not the respawned car's 0."""
+    cfg = EnvConfig(max_laps=1)
+    track = load_track("oval")
+    vec = BatchSimVecEnv(track, cfg, n_envs=1, seed=0)
+    env = RacerEnv(track, cfg)
+    env.reset()
+    vec.reset()
+    for sim in (vec.sim, env._sim):  # start one metre short of finishing the lap
+        sim._traveled[:] = track.length - 1.0
+        sim._max_traveled[:] = track.length - 1.0
+    a = np.array([[0.0, 1.0]])
+    for _ in range(40):
+        _, _, term, trunc, einfo = env.step(a[0])
+        vec.step_async(a)
+        _, _, dones, infos = vec.step_wait()
+        assert infos[0]["laps"] == einfo["laps"]
+        if dones[0]:
+            break
+    assert dones[0] and not term and infos[0]["laps"] == 1 and infos[0]["lap_completed"]
 
 
 def test_vec_env_done_step_semantics():
@@ -106,7 +135,7 @@ def test_vec_env_done_step_semantics():
     vec.reset()
     mirror.reset()
     rng = np.random.default_rng(0)
-    returns, seen_trunc, seen_crash = np.zeros(4), False, False
+    returns, lengths, seen_trunc, seen_crash = np.zeros(4), np.zeros(4, dtype=int), False, False
     for step in range(400):
         a = rng.uniform(-1, 1, (4, 2))
         a[:, 1] = 1.0
@@ -116,6 +145,7 @@ def test_vec_env_done_step_semantics():
         obs, rew, dones, infos = vec.step_wait()
         ref = mirror.step(a)
         returns += rew
+        lengths += 1
         assert np.array_equal(dones, ref.terminated | ref.truncated)
         assert np.allclose(obs, ref.obs)
         for i in range(4):
@@ -127,8 +157,9 @@ def test_vec_env_done_step_semantics():
                 seen_crash |= bool(ref.terminated[i])
                 assert np.allclose(info["terminal_observation"], ref.final_obs[i])
                 assert info["episode"]["r"] == np.float32(returns[i]) or np.isclose(info["episode"]["r"], returns[i])
-                assert info["episode"]["l"] >= 1 and info["episode"]["t"] >= 0
+                assert info["episode"]["l"] == lengths[i] and info["episode"]["t"] >= 0
                 returns[i] = 0.0
+                lengths[i] = 0
             else:
                 assert "terminal_observation" not in info and "episode" not in info
     assert seen_trunc and seen_crash

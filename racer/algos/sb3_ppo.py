@@ -168,14 +168,18 @@ class BatchSimVecEnv(VecEnv):
         self._actions = np.clip(np.asarray(actions, dtype=float), -1.0, 1.0)
 
     def step_wait(self):
+        # With auto_reset the sim zeroes a finished car's lap count, so count laps ourselves:
+        # laps before the step plus the lap (if any) finished in it, as RacerEnv reports.
+        laps_before = self.sim.laps.copy()
         res = self.sim.step(self._actions)
+        laps = laps_before + res.lap_completed
         dones = res.terminated | res.truncated
         rewards = res.reward.astype(np.float32)
         self._ep_return += res.reward
         self._ep_len += 1
         infos: list[dict] = []
         for i in range(self.num_envs):
-            info = {"lap_completed": bool(res.lap_completed[i]), "laps": int(self.sim.laps[i]),
+            info = {"lap_completed": bool(res.lap_completed[i]), "laps": int(laps[i]),
                     "TimeLimit.truncated": bool(res.truncated[i] and not res.terminated[i])}
             if res.lap_completed[i]:
                 info["lap_time"] = float(res.lap_time[i])
