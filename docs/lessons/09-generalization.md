@@ -16,8 +16,9 @@ on twisty alone, the same test. The results were not the ones the setup was buil
 - **The random-track PPO lost twisty.** One seed lapped twisty early in its run, at 39.72 s,
   faster than any twisty-trained PPO in lesson 07, and stopped lapping it before the halfway point.
   At the end, all three crash at the first hairpin.
-- **Both fail a mirror test.** Every track in the project turns mostly left. Mirror the tracks and
-  10 of the 12 checkpoints tested lap fewer of them, the random-track ones most of all.
+- **Both are hurt by mirroring.** Every track in the project turns mostly left. Mirror the tracks
+  and 10 of the 12 checkpoints tested lap fewer of them, the random-track ones most of all; the
+  two exceptions are one twisty-only seed that is mirror-proof.
 - **Why the random-track runs did not do better:** with `track_every = 1` each track is driven for
   one 8.53 s rollout from a standing start, about the first fifth of a lap. Experiment 1 changes
   that one number, and with a tenth of the tracks driven whole, PPO lapped twisty and the held-out

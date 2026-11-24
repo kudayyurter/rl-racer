@@ -8,14 +8,21 @@ on the dev machine (Ryzen 7 7700X, 16 threads), measured 2026-11-23.
 
 | method | twisty | oval |
 |---|---|---|
-| evolution | 6.9k/s | not measured |
+| evolution | 6.9k/s | 12.0-12.4k/s * |
 | reinforce | 12.6k/s | 12.5k/s |
-| a2c | 8.6k/s | not measured |
-| ppo | 5.3k/s | not measured |
-| sb3 | 5.0k/s (slowest) | not re-measured |
+| a2c | 8.6k/s | 3.9-6.0k/s * |
+| ppo | 5.3k/s | 5.3-5.6k/s * |
+| sb3 | 5.0k/s (slowest) | 5.0-5.2k/s * |
 | ppo_random (eval on twisty + 10 held-out tracks) | 3.0k/s | - |
 
-Oval throughput matched twisty for the methods measured, so oval is assumed equal for the rest.
+Before the main runs only REINFORCE was measured on the oval, and it matched twisty, so the oval
+budget assumed the others would too. \* The starred oval figures were filled in afterwards from
+the main oval runs (lessons 05, 06 and 10; run directories in lesson 10's oval section):
+`env_steps / wall_time_s` at the first `metrics.csv` row past 60 s, three seeds each. Those runs
+shared the machine (evolution three at a time, the others with about five other runs), so they
+are not "one at a time" like the rest of the table. Over whole runs, evaluations included, they
+averaged 9.0-10.5k/s (evolution), 8.2-10.3k (REINFORCE), 5.3-5.7k (A2C), 5.3k (PPO) and 4.9-5.2k
+(SB3).
 sb3 was 1.4k/s until it was moved onto one batched `BatchSim` (`BatchSimVecEnv`, same as our PPO's
 sim); the 1.4k/s was harness overhead, not the algorithm. The sb3 figure above is measured after that
 change (286,720 steps in 57 s); the other rows are unchanged from the first measurement.
@@ -30,8 +37,14 @@ change (286,720 steps in 57 s); the other rows are unchanged from the first meas
 
 Oval note: lessons need REINFORCE to lap the oval on every seed, which needed more than 1.2M steps
 (a 1.5M pilot lapped only at ~1.2M). The oval budget should be at least 2M if the 15 min rule allows;
-with SB3 batched it does (4.5M is ~900 s), so the equal-budget oval runs use 4.5M. If REINFORCE still
-does not lap reliably, raise the budget for all methods together; do not give one method its own.
+with SB3 batched it does (4.5M is ~900 s), so the equal-budget oval runs use 4.5M.
+
+Outcome at 4.5M (lessons 05 and 10): REINFORCE's sampled policy laps the oval on every seed, but
+its deterministic mean, which every evaluation drives, lapped on only two seeds (first at 1,071,712
+and 2,124,672 steps) and crashed in all three final evaluations. The budget was not raised: lesson
+05 traces the gap to the mean never being trained as a driver (its `log_std` barely moved in ~140
+updates), not to too few steps, and lesson 10 reports the oval bar for REINFORCE as a spec
+deviation.
 
 Timing caveat: the ~900 s for sb3 comes from the first ~60 s of a run. Evaluation episodes get longer as
 policies improve, so full runs may finish somewhat past 15 min.

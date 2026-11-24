@@ -28,8 +28,10 @@ progress_scale = 0.1       # reward per meter of track progress
 crash_penalty = 10.0       # reward lost on leaving the track
 # CHANGED (was 0.01): 0.05 per decision = 0.75 per second. Two laps end the episode, so each
 # second saved per lap is worth 2 x 0.75 = 1.5 return (env.toml: 0.3). Progress pays 0.1 per m,
-# so a car averaging more than 0.75 / 0.1 = 7.5 m/s still earns more by driving on than by
-# ending the episode at once (lesson 08's experiment raises this to 20x and watches it break).
+# so each further second pays only for a car averaging more than 0.75 / 0.1 = 7.5 m/s. A slower
+# car loses return every second, and with enough of the episode left those losses exceed the
+# one-off crash penalty (10), so crashing at once scores better (lesson 08; its experiment raises
+# the time cost to 20x and watches it break).
 # Measured in lesson 08: with this value PPO still laps but no faster than with env.toml, and
 # evolution never gets past the first hairpin from scratch (slow, safe drivers now score below
 # crashers, so the stepping stone it climbs with env.toml is gone).

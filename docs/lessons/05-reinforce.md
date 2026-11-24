@@ -477,7 +477,7 @@ the noisy driver lap and its own mean not?
   | 1 | 0.32 / 0.38 | 21.5 / 28.8 m/s |
   | 2 | 0.33 / 0.39 | 22.3 / 28.9 m/s |
 
-  The commands differ by only 0.04-0.06 on average, the speeds by 6-7 m/s.
+  The commands differ by only 0.04-0.06 on average, the speeds by 6.6-7.3 m/s.
   [`docs/lessons/scripts/noisy_throttle.py`](scripts/noisy_throttle.py) does the arithmetic for a
   throttle mean of 0.35 with std 0.6:
 

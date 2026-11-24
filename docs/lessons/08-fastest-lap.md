@@ -176,9 +176,13 @@ runs/evolution-20261123-200006-s0@10  (evolution, iteration 10)
 Under `env.toml` the crawler beats the crasher, 36.29 to 16.76: not crashing is worth more than
 speed. Under the fast-lap reward the order flips, 9.80 to -40.21: the crawler's 120 s of driving
 cost 90.00, nine crash penalties. The stepping stone lesson 04 relied on is gone. The general
-version: a time cost of `c` per decision makes driving on worth more than stopping only above
-`15c / 0.1 = 150c` m/s average (7.5 m/s at 0.05), and a beginner is slower than that. So the
-prediction for evolution is not "faster laps" but "trouble getting through the first hairpin at
+version: at a time cost of `c` per decision, each further second of driving pays for itself only
+above `15c / 0.1 = 150c` m/s average (7.5 m/s at 0.05). That is a per-second break-even, not yet a
+reason to crash, because crashing costs a one-off 10: a slower car scores better by crashing only
+when enough driving is still ahead for its per-second losses to add up to more than 10. The
+crawler above averaged 4.15 m/s (497.9 m in 120 s), lost 0.34 per second, and over its 120 s
+lost 40.21, four crash penalties; it would have been better off crashing after about 30 s. A
+beginner is slower than 7.5 m/s and has a whole episode ahead of it. So the prediction for evolution is not "faster laps" but "trouble getting through the first hairpin at
 all". The results below confirm it.
 
 ## PPO: discounting, bootstrapping, and a time cost that only prices endings

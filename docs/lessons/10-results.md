@@ -34,6 +34,7 @@ And the rules for runs ([spec](../superpowers/specs/2026-11-23-rl-racer-design.m
 | Plots against env steps and wall-clock time, and a discussion of why the ranking differs. | **Pass** | [Two plots, two rankings](#two-plots-two-rankings). |
 | Main results use 3 seeds and report ranges. | **Pass** | Every table below. |
 | A main training run takes at most about 15 minutes. | **Partial** | Evolution and REINFORCE took 408-556 s. A2C, PPO and SB3 took 971-1,079 s (16-18 min) on twisty and 790-911 s on the oval, with about five other training runs sharing the machine (the "other runs" columns below); `budgets.md` estimated ~850-900 s for PPO and SB3 alone. The fast-lap and random-track runs of lessons 08 and 09 took longer still under heavier sharing (up to 1,931 s). |
+| A lesson experiment takes at most about 5 minutes. | **Partial: exceeded in lessons 05, 08 and 09, and said so there** | Wall time is the last `wall_time_s` in each run's `metrics.csv`. Within it, or about it: lesson 04's experiments took 124-286 s, lesson 05's `gamma` runs 171-177 s, lesson 06's 253-364 s, lesson 07's 260-347 s, and this lesson's [Experiment 1](#1-evaluate-less-often) 240 and 125 s. Over it: lesson 05's [batch-size and learning-rate experiment](05-reinforce.md#2-batch-size-and-learning-rate) uses the full 4.5M budget (401-436 s; the lesson says "about 7 min per run"), lesson 08's [experiments](08-fastest-lap.md#experiments) took 206-534 s six at a time with other runs ("a few went over the 5-minute target"), and lesson 09's [experiment 1](09-generalization.md#1-a-new-track-every-rollout-or-every-10-track_every-1-vs-10) took 499-743 s for 1M steps, because every evaluation also drives the 10 held-out tracks ("Expect more than 5 minutes"). |
 
 ## Twisty: the main comparison
 
@@ -210,18 +211,21 @@ Why the same runs rank differently, from the largest effect to the smallest:
    879 times per run, and those evaluations were **62-63% of its wall time**. PPO and SB3
    evaluate every 10,240 decisions, 440 times: **39-42%** for our PPO (SB3 logs only at
    evaluations, so its share cannot be read this way; same cadence, so presumably similar).
-   Evolution evaluates every 5 generations, 11-13 times: 2%. Without evaluations, training
-   alone ran at 12.0-12.1k steps/s for A2C, 7.6k for PPO and 9.7-11.3k for evolution
-   (`final_table.py`). So a large part of A2C's and PPO's wall-clock curve is the cost of
-   *measuring* them, a cadence set in each config for the plots' sake, not part of learning.
-   Experiment 1 changes only that cadence.
+   Evolution evaluates every 5 generations, 11-13 times: 2%. Take the evaluations out and the
+   training speeds differ far less (point 2 has the numbers). So a large part of A2C's and
+   PPO's wall-clock curve is the cost of *measuring* them, a cadence set in each config for the
+   plots' sake, not part of learning. Experiment 1 changes only that cadence.
 2. **What one env step costs differs, but less than you might guess.** Without evaluations,
    training ran at 12.0-12.1k steps/s for A2C, 10.2-11.2k for REINFORCE, 9.7-11.3k for evolution
    and 7.6k for PPO (`final_table.py` on the twisty runs). Only PPO stands out: 10 epochs of 8
    minibatches of 256 is 80 Adam steps per 2,048 decisions, 20 times as many per decision as A2C's
    one step per 512. Reusing each sample ten times saves samples, not time, and in this project
    samples are cheap. Evolution's step has no gradient at all and is still not cheaper than A2C's,
-   partly because its generations keep simulating cars that crashed long ago ([lesson 04](04-neural-nets-and-evolution.md#results-three-seeds-on-twisty));
+   partly because its generations keep simulating cars that crashed long ago: `BatchSim.step`
+   moves, projects and crash-checks every car and only then keeps the old state of the frozen
+   ones ([sim.py lines 192-218](../../racer/sim.py#L192-L218)), and casts every car's rays
+   ([lines 229-230](../../racer/sim.py#L229-L230)). A frozen car costs compute but no env steps, so it
+   lowers steps per second (lesson 04's [speed note](04-neural-nets-and-evolution.md#results-three-seeds-on-twisty));
    we did not profile further. So against PPO, evolution's lead on the clock is part training cost
    and part evaluation; against A2C it is all evaluation: without its 879 evaluations, A2C's
    4.5M steps would have taken about 375 s, less than evolution's 408-476 s.
@@ -229,8 +233,10 @@ Why the same runs rank differently, from the largest effect to the smallest:
    alongside on average; REINFORCE, A2C, PPO and SB3 about 5 (`final_table.py`, which counts only
    runs still under `runs/`; lessons 05 and 06 disclose extra processes started by mistake for a
    few minutes, so their real load was higher). On 16 hardware threads with 2 torch threads per
-   run, that is probably a smaller effect than 1 and 2 (not measured separately), and it pushes in
-   the same direction: it flatters evolution's wall clock.
+   run, it is a smaller effect than 1 and 2, but it pushes in the same direction: it flatters
+   evolution's wall clock. Experiment 1 gives one measure of it: A2C's training parts ran at 13.1k
+   steps/s with the default settings when only the two experiment runs shared the machine, and
+   at 12.0-12.1k in the main runs with about five others alongside, about 8% slower.
 4. **SB3 runs its own Python per step** (buffer, callbacks, logger, info dicts), 5-11% slower
    than ours for the same steps ([lesson 07](07-ppo.md#results-our-ppo-against-sb3-three-seeds-each)).
 
@@ -333,8 +339,9 @@ Runs `runs/a2c-20261124-011656-s0` (`eval_every = 10`) and `runs/a2c-20261124-01
   numbers (the identical rows confirm it) and cannot change what it does.
   (Lesson 06's `runs/a2c-20261123-213731-s0`, the same settings run a day earlier with other runs
   alongside, matches both row for row too, apart from wall time.)
-- **The run took half as long**: 125 s against 240 s. The 115 s saved is close to the 126 s the
-  script's row-timing estimate gave for the evaluations, which is a check on that estimate; the
+- **The run took half as long**: 125 s against 240 s. The script's row-timing estimate predicts
+  the saving: 126 s of evaluating in the dense run minus the 12 s the sparse run still spent
+  evaluating is 114 s, and the measured saving is 115 s, which is a check on that estimate; the
   training parts agree (13.1k and 13.2k steps/s).
 - **What the cheaper run paid in measurement.** With an evaluation every 51,200 steps instead of
   every 5,120, the first lap shows up at 358,400 steps instead of 261,120, and the run's fastest

@@ -478,8 +478,13 @@ construction; they are not compared here.)
 ### But it gets slower
 
 The "best lap so far" panel only ever goes down, and it hides what the progress panel shows: after
-the first 0.5-1M steps, the evaluation progress of both implementations sinks from 2,254 m (two full laps)
-to around 2,000 m. Every one of the six final evaluations is "1 lap, no crash": the car is still
+the first 0.5-1M steps, the evaluation progress of both implementations sinks from 2,254 m (two
+full laps) on four of the six runs, our seeds 0 and 1 and SB3's seeds 0 and 1: the median
+`eval_progress_m` over the last quarter of each run's evaluations is 2,029, 1,947, 1,811 and
+2,142 m (from `metrics.csv`). The two seed-2 runs never held two laps for long (first-quarter
+medians 2,178 and 2,151 m) and drift rather than sink, with last-quarter medians of
+2,192 and 2,096 m; ours also crashed in about a quarter of its third-quarter evaluations. Every
+one of the six final evaluations is "1 lap, no crash": the car is still
 driving when the 90 s limit ends the episode, because its laps now take 46-54 s and two of them no
 longer fit. [`lap_counts.py`](scripts/lap_counts.py) splits each run's 440 evaluations into
 quarters (output condensed to one line per run; the script prints a header line per run):
