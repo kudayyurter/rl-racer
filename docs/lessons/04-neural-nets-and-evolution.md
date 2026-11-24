@@ -189,7 +189,7 @@ every step of experience, not one number per episode.
 One property of this setup makes the search easier than it could be: `F` is deterministic. Every
 car starts on the same start line (`random_start = false`), and the network has no randomness, so
 the same genome always earns exactly the same return in training (the evaluation episode can
-differ slightly; see step 3 below). A surviving elite scores the same next
+differ, occasionally by a lot; see step 3 below). A surviving elite scores the same next
 generation as this one, so the best fitness can never go down
 ([`test_elites_survive`](../../tests/test_evolution.py#L39-L43)). In lesson 09, where every
 episode is a different random track, fitness becomes noisy and that guarantee goes away.
@@ -225,7 +225,8 @@ using 95% of the generation's steps and scoring about -13.5 (1,350 decisions × 
 script prints -13.06 for the best of them). Selection removes them fast, and
 by generation 7 a generation cost 17,767 steps, an average of 139 decisions (9 s) per car: most
 cars now moved, and crashed early. As cars learned
-to survive, the cost climbed back to 65-90k per generation for the rest of the run.
+to survive, the cost climbed back: from generation 15 to the end it stayed between 64,950 and
+91,397 steps per generation.
 
 **2. Selection and mutation.** [`next_generation`](../../racer/algos/evolution.py#L95-L102):
 
@@ -251,8 +252,11 @@ In the evolution-strategies literature this scheme is a (μ + λ) strategy with 
 λ = 112 children: survivors and children compete together. Nothing in it knows anything about
 driving; all the improvement comes from selection keeping what worked.
 
-How big is a mutation of 0.1? The starting weights have a spread of about 0.2, so every child
-moves every weight by about half of that spread, all at once. The forward-pass script above shows
+How big is a mutation of 0.1? The starting weights have a spread (standard deviation) of about
+0.2, so early on every child moves every weight by about half of that spread, all at once.
+Training grows the weights: in seed 0's final network the spread is 0.545 for `W1` and 0.628 for
+`W2` (computed from its `latest.pt`), so late in training 0.1 is a smaller nudge, about a fifth of
+the spread, but still applied to all 482 numbers at once. The forward-pass script above shows
 the effect: eight mutants of one trained network, given the same observation, steer anywhere from
 -0.87 to +0.43 (the parent: -0.44), while their throttle stays above 0.99. The throttle output sits
 deep in tanh's flat region, so nudging its weights barely moves it; the steer output is in the
@@ -265,15 +269,19 @@ drives one episode in [`evaluate`](../../racer/evaluate.py#L28-L57), its checkpo
 it completed a lap, so is its fastest lap as a ghost.
 
 The evaluation drives the same genome from the same start line, so you might expect
-`eval_return` to equal `best_fitness` on the same row. Usually it does to two decimals, but not
-always. Training runs the network through `einsum` in `forward_population`; evaluation runs it
+`eval_return` to equal `best_fitness` on the same row. Usually the two are very close, but
+not always. Training runs the network through `einsum` in `forward_population`; evaluation runs it
 through `x @ w` in [`EvolutionPolicy.act`](../../racer/algos/evolution.py#L52-L57). The two add
 the same products in a different order, so their actions differ in the last bit (about 2e-16).
 Over a 1,350-decision episode that difference can grow: a car that just grazed a wall in one
-episode just misses it in the other. Across the 12 runs in this lesson, 227 of 236 evaluations
-matched to within 0.1. The other nine were all in experiment 1's two `mutation_std = 0.5` runs,
-the worst in `runs/evolution-20261123-200845-s0`: from generation 15 on, the best genome earned
-129.48 in training and 141.45 in evaluation. Every number this lesson quotes for laps and lap
+episode just misses it in the other. An elite that survives a plateau is evaluated again every
+fifth generation, so counting rows would count the same genome many times; counting each distinct
+best genome once, the 14 runs in this lesson evaluated 125. For 114 of them evaluation and
+training agreed to within 0.005, and for 122 to within 0.1 (seed 0's final network: 232.74 in training,
+232.68 in evaluation). The other three genomes are all from experiment 1's two
+`mutation_std = 0.5` runs, differing by 0.63, 1.77 and 11.98. The worst is in
+`runs/evolution-20261123-200845-s0`: from generation 12 on, its best genome earned 129.48 in
+training and 141.45 in evaluation. Every number this lesson quotes for laps and lap
 times comes from the evaluation columns.
 
 ## Why fitness is the episode return
@@ -325,7 +333,8 @@ The `metrics.csv` columns ([`METRIC_COLUMNS`](../../racer/runlog.py#L29-L30), pl
 | `best_fitness` | the best genome's return this generation; never decreases, thanks to elitism |
 
 A checkpoint is a dict ([lines 143-146](../../racer/algos/evolution.py#L143-L146)): the method
-name, generation and step count, `obs_dim`, the layer sizes and the 482 weights. The viewer and
+name, generation and step count, `obs_dim`, the layer sizes, the 482 weights, and the env config
+it was trained with. The viewer and
 `evaluate` turn it back into a driver through [`EvolutionPolicy`](../../racer/algos/evolution.py#L45-L68),
 which runs the same forward pass for a batch of observations with one network.
 
@@ -380,16 +389,18 @@ lap 2: 40.77 s  (flying)
 The standing start costs 2.6 s, and 15 s into the live car's first lap the ghost of *the very same
 network* is 57.4 m ahead. That is the screenshot below: `racer watch` on seed 0's finished run,
 900 frames (15 s) into the live car's first lap. The live car (yellow) is braking into the
-chicane (throttle -0.42 in the panel); the five ghosts (generations 45-64, faint grey) are already
-through it, ahead. On the live car's second lap they run together.
+chicane (throttle -0.42 in the panel); the ghosts (faint grey) are ahead of it, further into the
+chicane. On the live car's second lap they run together.
 
 ![racer watch on runs/evolution-20261123-200006-s0, 15 s into the first lap](../img/evolution.png)
 
 Two more things the screenshot shows. The status block says the car is driving the generation 64
 checkpoint while the best evaluation lap is from generation 55: `best_fitness` stayed at 232.74
-from generation 53 to the end, so generations 55-64 saved the same elite genome, and their ghosts
-are the same lap drawn on top of each other. And the best-lap curve flattens once the evaluation
-fits two laps: Results explains why.
+from generation 53 to the end, so generations 55, 60 and 64 saved the same elite genome (their
+checkpoint weights are identical), and their three ghosts are the same 40.77 s lap drawn on top of
+each other. Generations 45 and 50 likewise share one genome (`best_fitness` 232.55 from generation
+44 to 52) and one 41.68 s lap. So the five ghosts show up as two cars, about 6 m apart. And the
+best-lap curve flattens once the evaluation fits two laps: Results explains why.
 
 ## Results: three seeds on twisty
 
@@ -426,15 +437,17 @@ Things worth noticing:
   little reaches the same crash later and pays more time cost. By generation 10 the best car was a different kind of
   driver: at most 13.0 m/s, 498 m in the full 90 s, no crash, return 36.3. At generation 13 a
   car finally got through the corners at a useful speed (best return 38.4 → 139.7; the generation
-  15 evaluation lapped in 65.67 s), and seed 0 ended with the fastest lap of the three. Seeds
-  are not noise to average away; they are different searches.
+  15 evaluation lapped in 65.67 s), and seed 0 ended tied with seed 2 for the fastest lap
+  (40.767 s against 40.783 s, one physics tick of 1/60 s apart). Seed-to-seed variation is
+  large: the same settings took between 383,855 and 669,230 steps to a first lap. That is why
+  one or two seeds are not enough to rank settings, and why lesson 10 aggregates over seeds.
 - **Lap time drops fast, then flattens.** Seed 0's evaluation lap went 65.67 → 55.65 → 52.02 →
   46.97 s at generations 15, 20, 25, 30, then 41.70 s at 40 and only 40.77 s by the end (console
   lines of the run). Lesson 02's constant-speed controller managed 82.52 s on twisty; braking
   for corners is what evolution found beyond that (the screenshot above catches it braking,
   throttle -0.42, into the chicane).
-- **Why it flattens: the reward stops paying for speed.** Until a network fits two laps in 90 s,
-  every extra meter is worth 0.1, and return rises steeply (seed 0: 148 → 219 between generations
+- **Why it flattens: largely because the reward stops paying for speed.** Until a network fits
+  two laps in 90 s, every extra meter is worth 0.1, and return rises steeply (seed 0: 148 → 219 between generations
   15 and 30). Once it fits both laps, the episode ends at the line, and going faster only saves
   time cost: 1 s faster is 15 fewer decisions, `15 × 0.01 = 0.15` return. All three seeds end
   between 232.46 and 232.81, though their best laps differ by 0.9 s. Truncation selection uses only
@@ -516,15 +529,21 @@ a time, seed 1 variants four at a time, so wall times are only a rough guide. "M
   of 129.48.) And because those cars crash after about 10 s, generations
   were cheap (18,806 steps each on average), so seed 0 ran 107 of them and still went nowhere.
   This is *exploitation without exploration*.
-- **0.5 can jump, but cannot refine.** On seed 0 the best return sat at 24.9 from generation 5
-  to 12, jumped to 129.48 in one generation (a big mutation landing somewhere much better), then
-  did not improve again for the remaining 13 generations. The last generation's mean was -1.61:
+- **0.5 moves in big jumps and long flats.** On seed 0 the best return sat at 24.90 from
+  generation 4 to 11, jumped to 129.48 at generation 12 (a big mutation landing somewhere much
+  better), then did not improve again for the remaining 14 generations (13-26). The last generation's mean was -1.61:
   almost every child crashes immediately, because noise of 0.5 on weights of around 0.2-1 rewrites
   the network instead of adjusting it. On seed 1 it did well, a 48.78 s lap against 49.53 s for
-  0.1. Large mutations explore far, which can escape a trap, but they rarely produce a child that
-  is a little better than its parent, and that is how a lap time gets polished. This is
-  *exploration without exploitation*.
-- **0.1 balances the two** in these runs: children are different enough to find a new kind of
+  0.1, but it got there the same way: the best return was 16.08 for generations 4-8, 142.45 for
+  generations 9-17, then 145.78, 185.62 and 209.84 (generations 20-29), five improvements in 29
+  generations. With 0.1 on seed 1 the best return improved 15 times in its first 25 generations,
+  mostly in small steps (76.59 → 83.45 → 124.14 → 128.69 → 145.47 → 157.36 → 166.47 → ...; all
+  from `best_fitness` in the two runs' `metrics.csv`). Large mutations explore far, which can
+  escape a trap, but they rarely produce a child that is a little better than its parent, and that
+  is how a lap time gets polished. This is *exploration at the expense of exploitation*; it can
+  pay off within a budget, as on seed 1, but it is a lottery.
+- **0.1 was the most reliable of the three here**: it lapped on both seeds, was best on seed 0
+  and within 0.75 s of 0.5 on seed 1. Its children are different enough to find a new kind of
   driver (seed 0 escaped the hairpin trap at generation 13) and close enough that many are small
   improvements. The best value depends on the network's weight scale, the population and the
   problem; there is no universal number.
@@ -534,43 +553,57 @@ a time, seed 1 variants four at a time, so wall times are only a rough guide. "M
 ### 2. Population: 32 vs 128
 
 **Change.** 32 cars per generation instead of 128, with `elite = 4` so the same eighth of the
-population survives (with the default `elite = 16`, half of 32 would survive and the experiment
-would change two things at once).
+population survives. Shrinking the population that way changes two things at once, though: fewer
+candidates per generation *and* fewer distinct parents (4 instead of 16). So run a second variant
+that keeps 16 parents (`elite = 16`, half of 32 survive) to tell the two apart.
 
 **Predict.** With the same step budget, 32 cars get about four times as many generations.
 More rounds of selection, or more candidates per round: which matters more? Will it lap sooner,
-in env steps?
+in env steps? Does keeping 16 parents change the answer?
 
 **Run.**
 
 ```sh
 uv run racer train evolution --set env_steps_budget=2000000 --set population=32 --set elite=4
+uv run racer train evolution --set env_steps_budget=2000000 --set population=32 --set elite=16
 ```
 
 <details><summary>What we got</summary>
 
-| population | seed | run directory | generations | first lap | final evaluation |
+| population, elite | seed | run directory | generations | first lap | final evaluation |
 |---|---|---|---|---|---|
-| 32 | 0 | `runs/evolution-20261123-200847-s0` | 510 | never | 0 laps, 288.1 m, return 17.12 |
-| 128 | 0 | `runs/evolution-20261123-200843-s0` | 32 | gen 15, 649,193 steps | 1 lap, 46.97 s |
-| 32 | 1 | `runs/evolution-20261123-201530-s1` | 80 | gen 30, 805,026 steps | 1 lap, 59.63 s |
-| 128 | 1 | `runs/evolution-20261123-200008-s1` (to gen 25) | 25 | gen 10, 669,230 steps | 1 lap, 49.53 s |
+| 32, 4 | 0 | `runs/evolution-20261123-200847-s0` | 510 | never | 0 laps, 288.1 m, return 17.12 |
+| 32, 16 | 0 | `runs/evolution-20261123-203500-s0` | 510 | never | 0 laps, 282.7 m, return 16.89 |
+| 128, 16 | 0 | `runs/evolution-20261123-200843-s0` | 32 | gen 15, 649,193 steps | 1 lap, 46.97 s |
+| 32, 4 | 1 | `runs/evolution-20261123-201530-s1` | 80 | gen 30, 805,026 steps | 1 lap, 59.63 s |
+| 32, 16 | 1 | `runs/evolution-20261123-203501-s1` | 140 | gen 90, 528,796 steps | 2 laps, 43.07 s |
+| 128, 16 | 1 | `runs/evolution-20261123-200008-s1` (to gen 25) | 25 | gen 10, 669,230 steps | 1 lap, 49.53 s |
 
-- On seed 0 the small population never left the hairpin trap. Its first generation's best
-  return was -2.94: not one of 32 random networks earned a positive return. It then spent 510
-  generations polishing "flat out, crash at the hairpin" from 16.84 to 17.12 (its final network
-  reached 42.4 m/s and crashed after 288 m, per `replay_checkpoint.py`). It evaluated far more
-  children than the population of 128 did (510 × 28 = 14,280 against 32 × 112 = 3,584), but with
-  only 4 survivors per generation the population filled up with variations of one crasher, and no
-  other kind of driver was left to select.
-- On seed 1 it lapped, but later in env steps (805,026 against 669,230) and slower at the end of
-  the budget (59.63 s against 49.53 s).
-- So, at equal env steps, more generations did not beat more variety per generation here. A
-  bigger population keeps several different strategies alive at once (some fast crashers, some
-  slow survivors), and that variety is what lets selection find the way past a trap. The trade
-  goes the other way at some point: with a fixed budget, a population of thousands would get
-  very few generations. Sample efficiency (env steps to a lap) is what the budget measures, and on
-  this problem population 32 used its samples worse on both seeds.
+- **Seed 0: both small populations stayed in the hairpin trap.** With the same seed, both start
+  from the same 32 random networks, and the best of them returned -2.94: not one earned a positive
+  return. The elite-4 run then spent 510 generations polishing "flat out, crash at the hairpin"
+  from 16.35 (generation 2) to 17.12 (its final network reached 42.4 m/s and crashed after 288 m,
+  per `replay_checkpoint.py`); the elite-16 run ended the same way (50.0 m/s, crash after 282.7 m
+  and 9.2 s). Population 128, starting from 128 random networks, got out at generation 13.
+- **Seed 1: the parent count decided it.** With 4 parents, population 32 lapped later than
+  population 128 (805,026 against 669,230 steps) and was slower at the end (59.63 s against
+  49.53 s). With 16 parents it lapped *earlier* (528,796 steps), fitted two laps by generation 135
+  (1,863,428 steps) and ended with a 43.07 s best lap, well ahead of population 128's 49.53 s at
+  the same budget. It ran 140 generations to population 128's 25.
+- "First lap" is only known to within one evaluation interval (5 generations), and that interval
+  is much shorter for a small population: 111k-153k steps for population 32 / elite 4 on seed 1,
+  and 41,854 steps before the elite-16 run's first lap, against 220k and 322k steps before the
+  population-128 runs' first laps. That favours the small populations in the first-lap column.
+  The final evaluations are not affected by it.
+
+What this suggests, from two seeds: the poor elite-4 result came mostly from keeping only 4
+parents, which fills the population with variations of one driver, rather than from having 32
+cars. With 16 parents, many cheap generations used the budget better on seed 1. But on seed 0 no
+32-car population got out of the hairpin trap that a population of 128 escaped, plausibly because
+a bigger population holds more different kinds of driver at once (some fast crashers, some slow
+survivors) for selection to choose from. More seeds would be needed to say which effect usually
+wins; the trade-off has two ends (with a fixed budget, a population of thousands would get very
+few generations).
 
 </details>
 
@@ -604,9 +637,13 @@ the end of the budget the lap was 11-23 s slower. Both five-ray runs spent a lon
 plateau (`replay_checkpoint.py` on their checkpoints): seed 1 in the hairpin trap, its best
 evaluation crashing at 281-282 m from generation 5 to 30 (at generation 30 at the 50 m/s speed
 cap, after 9.2 s); seed 0 as a cautious driver that covered 422.5 m in 90 s, top speed 17.5 m/s,
-from generation 5 to 25.
+from generation 5 to 25. "First lap" is known only to within one evaluation interval: the
+5-ray runs' last lapless evaluations came 370,879 and 445,474 steps before their first laps, so
+they may have been able to lap that much earlier (after 1.10M and 1.34M steps at the soonest),
+still well behind the 9-ray runs (649,193 and 669,230).
 
-A smaller genome did not make the search easier, because what the network could know got worse.
+A smaller genome did not make the search easier, likely because what the network could know got
+worse.
 Lesson 03's start-line table shows why the missing rays matter: on the 12 m road, a ray at 45°
 hits the side wall at 8.5 m, one at 22.5° at 15.7 m. The ±22.5° rays are the ones that look down
 the road into a corner before the car reaches it. With five rays the car has the single forward
