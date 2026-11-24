@@ -162,7 +162,7 @@ table of the ones that pin its key behaviours.
 | [**04**](04-neural-nets-and-evolution.md) | neural nets and neuroevolution: a forward pass by hand, learning with no gradients |
 | [**05**](05-reinforce.md) | REINFORCE: the policy-gradient theorem derived, and why it is noisy |
 | [**06**](06-a2c.md) | A2C: a learned baseline, n-step bootstrapping, the truncation fix |
-| **07** | PPO: GAE and the clipped objective, checked against Stable-Baselines3 (coming) |
+| [**07**](07-ppo.md) | PPO: the clipped objective, GAE, minibatch epochs, checked against Stable-Baselines3 |
 | **08** | fastest lap: reward shaping and what it does to the racing line (coming) |
 | **09** | generalization: training on random tracks, testing on unseen ones (coming) |
 | **10** | results: every method compared by env steps and by wall-clock time (coming) |

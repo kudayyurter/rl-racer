@@ -1,11 +1,12 @@
-"""Lessons 05-06: every evaluation of a run on one screen, and how steady it was.
+"""Lessons 05-07: every evaluation of a run on one screen, and how steady it was.
 
 For each run directory: one token per evaluation row of metrics.csv, ``iteration:laps``
 followed by the best lap in seconds when it lapped, or by the progress in meters when it did not
 (``25:2(32.3s)``, ``40:0[582m]``). Then a summary: how many evaluations completed at least one
 lap, how many evaluations after the first lapping one did NOT (a policy that had learned to lap
 and then lost it, at least for that one deterministic episode), the final evaluation, and the
-explained variance (A2C, PPO) as quartiles over all iterations and over the last tenth of them.
+explained variance (A2C, PPO) and PPO's approx_kl and clip_frac as quartiles over all iterations
+and over the last tenth of them.
 
 Run: uv run python docs/lessons/scripts/eval_history.py runs/a2c-<timestamp>-s0 [--short]
      (--short: summary only, no per-evaluation tokens)
@@ -47,12 +48,15 @@ def summarize(path: Path, short: bool) -> str:
     out.append(f"  final evaluation: {int(final['eval_laps'])} laps, "
                f"progress {final['eval_progress_m']:.1f} m, return {final['eval_return']:.2f}"
                + (f", best lap {final['eval_best_lap_s']:.2f} s" if final["eval_laps"] > 0 else ""))
-    if "explained_variance" in rows[0]:
-        ev = np.array([r["explained_variance"] for r in rows])
-        ev = ev[~np.isnan(ev)]
-        tail = ev[-max(1, len(ev) // 10):]
-        q = lambda x: "/".join(f"{v:+.2f}" for v in np.percentile(x, [25, 50, 75]))
-        out.append(f"  explained variance quartiles: all iterations {q(ev)}, last tenth {q(tail)}")
+    q = lambda x, f="+.2f": "/".join(f"{v:{f}}" for v in np.percentile(x, [25, 50, 75]))
+    for column, name, fmt in (("explained_variance", "explained variance", "+.2f"),
+                              ("approx_kl", "approx_kl", ".4f"), ("clip_frac", "clip_frac", ".3f")):
+        if column not in rows[0]:
+            continue
+        vals = np.array([r[column] for r in rows])
+        vals = vals[~np.isnan(vals)]
+        tail = vals[-max(1, len(vals) // 10):]
+        out.append(f"  {name} quartiles: all iterations {q(vals, fmt)}, last tenth {q(tail, fmt)}")
     return "\n".join(out)
 
 

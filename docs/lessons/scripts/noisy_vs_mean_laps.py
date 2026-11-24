@@ -1,8 +1,10 @@
-"""Lessons 05-06: did a policy learn to lap? Its noisy policy and its deterministic mean, per seed.
+"""Lessons 05-07: did a policy learn to lap? Its noisy policy and its deterministic mean, per seed.
 
 Training drives the *sampled* action (the Gaussian around the network's mean, clipped to
 [-1, 1] by the sim); every evaluation in metrics.csv drives the *mean*. For each run directory
-given, this script loads the final checkpoint (``checkpoints/latest.pt``) and reports:
+given (REINFORCE, A2C, PPO or SB3 PPO; see ``actor_of.py``), this script loads the final
+checkpoint (``checkpoints/latest.pt``, or ``ckpt_<iteration>.pt`` for ``RUN@ITERATION``) and
+reports:
   - noisy policy: 32 cars, one episode each from the start line, actions sampled exactly as in
     training (torch seed 0, so the numbers are reproducible): how many episodes completed 0, 1
     and 2 laps, how many ended by crash or wrong way, the median top speed, and where the
@@ -17,6 +19,7 @@ given, this script loads the final checkpoint (``checkpoints/latest.pt``) and re
     last that did, and the final one.
 
 Run: uv run python docs/lessons/scripts/noisy_vs_mean_laps.py runs/reinforce-<timestamp>-s0 ...
+     (append @ITERATION to a run directory to use that checkpoint instead of the final one)
 """
 
 import json
@@ -27,6 +30,7 @@ from pathlib import Path
 import numpy as np
 import torch
 
+from actor_of import gaussian_actor
 from racer.config import EnvConfig, from_dict
 from racer.policy import load_policy
 from racer.runlog import RunDir
@@ -67,12 +71,15 @@ def drive(track, env, actor, n: int, noisy: bool) -> dict:
 def main() -> None:
     torch.set_num_threads(2)
     for arg in sys.argv[1:]:
-        path = Path(arg)
+        # "runs/x" = the final checkpoint; "runs/x@110" = the checkpoint of iteration 110.
+        run_arg, _, iteration = arg.partition("@")
+        path = Path(run_arg)
+        ckpt_path = path / "checkpoints" / (f"ckpt_{int(iteration):05d}.pt" if iteration else "latest.pt")
         config = json.loads((path / "config.json").read_text())
         env = from_dict(EnvConfig, config["env"])
         track = load_track(config["train"]["track"])
-        ckpt = torch.load(path / "checkpoints" / "latest.pt", weights_only=False)
-        actor = load_policy(path / "checkpoints" / "latest.pt").actor
+        ckpt = torch.load(ckpt_path, weights_only=False)
+        actor = gaussian_actor(load_policy(ckpt_path))
         torch.manual_seed(0)
         noisy = drive(track, env, actor, N_NOISY, noisy=True)
         mean = drive(track, env, actor, 1, noisy=False)
@@ -83,7 +90,7 @@ def main() -> None:
         evals = [r for r in rows if not math.isnan(r["eval_laps"])]
         lapped = [r for r in evals if r["eval_laps"] > 0]
 
-        print(f"{path.name} ({config['train']['track']}, seed {config['seed']}, final checkpoint = "
+        print(f"{path.name} ({config['train']['track']}, seed {config['seed']}, checkpoint = "
               f"iteration {ckpt['iteration']}, {ckpt['env_steps']:,} steps)")
         print(f"  noisy policy, {N_NOISY} episodes: laps 0/1/2 = {laps[0]}/{laps[1]}/{laps[2]}, "
               f"crash or wrong way {int(noisy['crashed'].sum())}, "

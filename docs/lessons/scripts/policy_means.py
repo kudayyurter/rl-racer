@@ -1,6 +1,7 @@
-"""Lessons 05-06: what does a Gaussian actor's *mean* look like, before the env clips it?
+"""Lessons 05-07: what does a Gaussian actor's *mean* look like, before the env clips it?
 
-For each checkpoint given (REINFORCE, A2C or PPO; anything with a ``GaussianActor``), prints:
+For each checkpoint given (REINFORCE, A2C, PPO or SB3 PPO; anything with a Gaussian actor, see
+``actor_of.py``), prints:
   - the unclipped mean [steer, throttle] on the start line, and the learned std,
   - over the states of the deterministic evaluation episode (what ``evaluate`` drives): the
     range of each mean and the share outside [-1, 1], plus how the episode went,
@@ -19,6 +20,7 @@ import sys
 import numpy as np
 import torch
 
+from actor_of import gaussian_actor
 from racer.config import EnvConfig, from_dict
 from racer.policy import load_policy
 from racer.sim import BatchSim
@@ -42,7 +44,7 @@ def main() -> None:
     torch.manual_seed(0)
     for w in which:
         name = "latest.pt" if w == "latest" else f"ckpt_{int(w):05d}.pt"
-        actor = load_policy(f"{run}/checkpoints/{name}").actor
+        actor = gaussian_actor(load_policy(f"{run}/checkpoints/{name}"))
 
         def mean(obs: np.ndarray) -> np.ndarray:
             with torch.no_grad():
