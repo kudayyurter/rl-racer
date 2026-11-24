@@ -55,6 +55,33 @@ class EnvConfig:
     car: CarParams = dataclasses.field(default_factory=CarParams)
 
 
+def _check_type(key: str, hint, value) -> None:
+    """Raise ConfigError if ``value`` cannot be a ``hint`` (bool, int, float, str, tuple).
+
+    Command-line overrides arrive as untyped text, so ``random_start=False`` would otherwise
+    become the truthy string "False". bool is a subclass of int in Python, so it is excluded
+    from numeric fields explicitly; an int is fine where a float is expected.
+    """
+    if typing.get_origin(hint) is tuple:
+        if not isinstance(value, tuple):
+            raise ConfigError(f"{key} must be a list, got {value!r}")
+        args = [a for a in typing.get_args(hint) if a is not Ellipsis]
+        for item in value:
+            if args:
+                _check_type(key, args[0], item)
+        return
+    if hint is float:
+        ok = isinstance(value, (int, float)) and not isinstance(value, bool)
+    elif hint is int:
+        ok = isinstance(value, int) and not isinstance(value, bool)
+    elif hint in (bool, str):
+        ok = isinstance(value, hint)
+    else:
+        return  # no checkable annotation
+    if not ok:
+        raise ConfigError(f"{key} must be {hint.__name__}, got {value!r}")
+
+
 def from_dict(cls, data: dict, _path: str = ""):
     """Build dataclass ``cls`` from a plain dict, rejecting unknown keys.
 
@@ -77,9 +104,11 @@ def from_dict(cls, data: dict, _path: str = ""):
             if not isinstance(value, dict):
                 raise ConfigError(f"{_path}{name} must be a table, got {type(value).__name__}")
             value = from_dict(hint, value, _path=f"{_path}{name}.")
-        elif typing.get_origin(hint) is tuple and isinstance(value, list):
-            # TOML has only arrays (lists); tuple-typed fields stay hashable/immutable.
-            value = tuple(value)
+        else:
+            if typing.get_origin(hint) is tuple and isinstance(value, list):
+                # TOML has only arrays (lists); tuple-typed fields stay hashable/immutable.
+                value = tuple(value)
+            _check_type(f"{_path}{name}", hint, value)
         kwargs[name] = value
     return cls(**kwargs)
 

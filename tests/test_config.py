@@ -40,3 +40,36 @@ def test_cli_stub_returns_one(capsys):
     # Any subcommand that is still a stub (drive became real in Task 7).
     assert main(["compare"]) == 1
     assert "not implemented yet" in capsys.readouterr().out
+
+
+# ---- value type checking (overrides come from the command line as untyped text)
+
+from racer.config import parse_overrides  # noqa: E402
+
+
+@pytest.mark.parametrize("override", ["random_start=False", "dt=abc", "n_rays=2.5",
+                                      "n_rays=true", "car.drag=\"x\""])
+def test_env_override_with_wrong_type_raises(override):
+    with pytest.raises(ConfigError, match=override.split("=")[0].split(".")[-1]):
+        from_dict(EnvConfig, parse_overrides([override]))
+
+
+def test_int_accepted_for_float_field():
+    assert from_dict(EnvConfig, parse_overrides(["dt=1"])).dt == 1
+
+
+def test_tuple_field_type_checked():
+    from racer.algos.evolution import EvolutionConfig
+    base = {"env_steps_budget": 1}
+    with pytest.raises(ConfigError, match="hidden"):
+        from_dict(EvolutionConfig, {**base, **parse_overrides(["hidden=64"])})
+    with pytest.raises(ConfigError, match="hidden"):
+        from_dict(EvolutionConfig, {**base, **parse_overrides(["hidden=[8, \"a\"]"])})
+    assert from_dict(EvolutionConfig, {**base, "hidden": [8, 4]}).hidden == (8, 4)
+
+
+def test_shipped_configs_load():
+    from racer.algos.evolution import EvolutionConfig
+    from racer.config import load_env_config, load_method_config
+    load_env_config("configs/env.toml")
+    load_method_config(EvolutionConfig, "configs/evolution.toml")

@@ -67,3 +67,44 @@ def test_train_cli_parses_shared_flags():
                                       "--set", "population=8", "--env-set", "car.drag=0.01"])
     assert (args.method, args.seed, args.set, args.env_set) == (
         "evolution", 3, ["track=oval", "population=8"], ["car.drag=0.01"])
+
+
+def test_env_steps_excludes_frozen_cars():
+    from racer.algos.evolution import run_generation
+    from racer.sim import BatchSim
+    from racer.track import load_track
+    from racer.nets_np import genome_size
+
+    sizes, track, env = (12, 8, 2), load_track("oval"), EnvConfig()
+    # Constant outputs via the last-layer bias: [steer, throttle]. Hard-steering cars crash
+    # into the wall; a car with negative throttle never moves and runs to the time limit.
+    genomes = np.zeros((4, genome_size(sizes)))
+    genomes[:, -2:] = [[5, 5], [-5, 5], [0, 5], [0, -5]]
+
+    def decisions(g):
+        sim = BatchSim(track, env, n_cars=len(g), seed=0, auto_reset=False)
+        _, steps = run_generation(sim, g, sizes)
+        return steps
+
+    batch = decisions(genomes)
+    assert batch == sum(decisions(genomes[i:i + 1]) for i in range(4))
+    ticks = math.ceil(env.max_episode_s / env.dt - 1e-9) // env.action_repeat
+    assert batch < 4 * ticks          # the crashers stopped counting
+    assert decisions(genomes[3:]) >= ticks  # the parked car did run the full episode
+
+
+def test_next_generation_selection_and_mutation():
+    from racer.algos.evolution import next_generation
+    rng = np.random.default_rng(0)
+    genomes = rng.normal(size=(10, 6))
+    fitness = rng.permutation(10).astype(float)
+    original = genomes.copy()
+    out = next_generation(np.random.default_rng(1), genomes, fitness, 3, 0.1)
+    np.testing.assert_array_equal(genomes, original)           # input untouched
+    assert out.shape == genomes.shape
+    top = genomes[np.argsort(fitness)[::-1][:3]]
+    np.testing.assert_array_equal(out[:3], top)                # elites exact, best first
+    for child in out[3:]:
+        dist = np.abs(top - child).max(axis=1)
+        assert dist.min() > 0                                  # mutated, not a plain copy
+        assert dist.min() < 1.0                                # but close to some elite
