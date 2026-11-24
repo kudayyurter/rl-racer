@@ -680,4 +680,4 @@ and [`docs/img/overlay-9-rays.png`](../img/overlay-9-rays.png) from lesson 01 sh
 | [`test_env_steps_excludes_frozen_cars`](../../tests/test_evolution.py#L72-L93) | the budget counts only cars still driving |
 | [`test_same_seed_same_run`](../../tests/test_evolution.py#L46-L49) | the same seed gives the same run |
 
-Next: 05 · REINFORCE (coming).
+Next: [05 · REINFORCE: the policy gradient](05-reinforce.md).

@@ -62,8 +62,8 @@ simulator to the viewer, and lists every command.
 | [02 · Car physics](docs/lessons/02-car-physics.md) | kinematic bicycle, grip limit, the braking problem |
 | [03 · Sensors and the environment](docs/lessons/03-sensors-and-env.md) | observation, reward, terminated vs truncated, batching |
 | [04 · Neural nets and neuroevolution](docs/lessons/04-neural-nets-and-evolution.md) | the MLP forward pass, a population of networks, selection and mutation with no gradients |
-| 05 · REINFORCE | coming |
-| 06 · A2C | coming |
+| [05 · REINFORCE](docs/lessons/05-reinforce.md) | the policy gradient derived, reward-to-go, why plain REINFORCE is noisy |
+| [06 · A2C](docs/lessons/06-a2c.md) | a critic as baseline, n-step bootstrapping, the truncation fix |
 | 07 · PPO vs Stable-Baselines3 | coming |
 | 08 · Fastest lap | coming |
 | 09 · Generalization to random tracks | coming |
