@@ -62,10 +62,30 @@ def test_ppo_smoke(tmp_path):
     assert policy.act(np.zeros((1, 12))).shape == (1, 2)
 
 
-def test_random_tracks_not_implemented(tmp_path):
-    cfg = PPOConfig(track="oval", tracks="random", env_steps_budget=64)
+def test_ppo_random_tracks_smoke(tmp_path, monkeypatch):
+    from racer.sim import BatchSim
+
+    switched = []
+    original = BatchSim.set_track
+    monkeypatch.setattr(BatchSim, "set_track",
+                        lambda self, track: (switched.append(track.name), original(self, track))[1])
+    cfg = PPOConfig(track="oval", tracks="random", track_every=2, n_cars=4, n_steps=8, epochs=1,
+                    minibatch=16, hidden=(8,), env_steps_budget=32 * 6, eval_every=3)
     run = RunDir.create("ppo", 0, root=tmp_path, extra_columns=EXTRA_COLUMNS)
-    with pytest.raises(NotImplementedError):
+    train_ppo(cfg, EnvConfig(max_episode_s=1.0), run)
+    rows = run.read_metrics()
+    assert len(rows) == 6
+    # 6 iterations, a new track before iterations 3 and 5 (iteration 1 uses the first one)
+    assert len(switched) == 2 and all(n.startswith("rand_") for n in switched)
+    evaluated = [r for r in rows if not np.isnan(r["eval_laps"])]
+    assert len(evaluated) == 2
+    assert all(np.isfinite(r["eval_heldout_laps_mean"]) for r in evaluated)
+
+
+def test_ppo_rejects_unknown_tracks_mode(tmp_path):
+    cfg = PPOConfig(track="oval", tracks="bogus", env_steps_budget=64)
+    run = RunDir.create("ppo", 0, root=tmp_path, extra_columns=EXTRA_COLUMNS)
+    with pytest.raises(ValueError):
         train_ppo(cfg, EnvConfig(), run)
 
 

@@ -47,6 +47,14 @@ def _watch(args: argparse.Namespace) -> int:
                      screenshot=args.screenshot, frames=args.frames)
 
 
+def _gen_track(args: argparse.Namespace) -> int:
+    from racer.trackgen import write_track_json
+
+    path = write_track_json(args.seed, args.out)
+    print(f"wrote {path}")
+    return 0
+
+
 # One line per learning method: name -> module. Each module defines CONFIG_CLASS (its config
 # dataclass), EXTRA_COLUMNS (extra metrics.csv columns) and train(cfg, env_cfg, run).
 TRAIN_METHODS = {
@@ -126,6 +134,11 @@ def build_parser() -> argparse.ArgumentParser:
     watch.add_argument("--frames", type=int, default=30,
                        help="frames to render before the screenshot (default 30)")
     watch.set_defaults(handler=_watch)
+
+    gen = subparsers["gen-track"]
+    gen.add_argument("--seed", type=int, required=True, help="seed: the same seed gives the same track")
+    gen.add_argument("--out", required=True, metavar="PATH", help="where to write the track JSON, e.g. tracks/rand_7.json")
+    gen.set_defaults(handler=_gen_track)
 
     _add_train_parser(subparsers["train"])
     return parser

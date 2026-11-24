@@ -1,7 +1,7 @@
 # PPO: A2C plus GAE, stored old log-probs and clipped minibatch epochs.
 track = "twisty"           # tracks/<name>.json, or a path
-tracks = "fixed"           # "fixed" = train on `track`; "random" arrives with Task 15
-track_every = 1            # unused until random tracks exist
+tracks = "fixed"           # "fixed" = train on `track`; "random" = new random track (see ppo_random.toml)
+track_every = 1            # random mode: rollouts per new training track
 n_cars = 16                # cars driving in parallel while collecting
 n_steps = 128              # steps per car per rollout (one update = n_cars * n_steps samples)
 gamma = 0.99               # discount factor

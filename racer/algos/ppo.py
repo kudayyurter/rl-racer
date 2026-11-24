@@ -38,6 +38,9 @@ from racer.policy import register_loader
 from racer.runlog import RunDir
 from racer.sim import BatchSim, obs_dim
 from racer.track import load_track
+from racer.trackgen import heldout_tracks, track_for_seed, training_seed
+
+N_HELDOUT = 10  # size of the held-out evaluation set in random-track mode
 
 # Extra metrics.csv columns: episode length, the policy's mean std, and the critic's health.
 # explained_variance is 1 - Var(R - V) / Var(R): 1 = critic predicts returns perfectly,
@@ -47,8 +50,10 @@ from racer.track import load_track
 #   approx_kl  how far the policy moved from the old one, mean((ratio - 1) - log ratio)
 #              (a low-variance estimate of KL(old || new); ~0.01-0.02 is typical)
 #   clip_frac  share of samples whose ratio left [1 - clip, 1 + clip] (clipping was active)
+# eval_heldout_laps_mean is filled only in random-track mode: mean laps over the held-out
+# tracks (empty = NaN in fixed-track runs).
 EXTRA_COLUMNS = ("episode_len_mean", "log_std_mean", "value_loss", "explained_variance",
-                 "approx_kl", "clip_frac")
+                 "approx_kl", "clip_frac", "eval_heldout_laps_mean")
 
 
 @dataclass
@@ -70,8 +75,8 @@ class PPOConfig:
     hidden: tuple[int, ...] = (64, 64)
     eval_every: int = 5             # iterations between evaluations + checkpoints
     seed: int = 0
-    tracks: str = "fixed"           # "fixed": train on ``track``; "random" arrives with Task 15
-    track_every: int = 1            # unused until random tracks exist (iterations per new track)
+    tracks: str = "fixed"           # "fixed": train on ``track``; "random": a new random track
+    track_every: int = 1            # random mode: iterations (rollouts) per new training track
 
 
 def _load_policy(ckpt: dict) -> TorchPolicy:
@@ -188,19 +193,26 @@ CONFIG_CLASS = PPOConfig  # names the CLI looks up for every method (see racer/c
 
 
 def train_ppo(cfg: PPOConfig, env_cfg: EnvConfig, run: RunDir) -> None:
-    if cfg.tracks != "fixed":
-        raise NotImplementedError(f'tracks="{cfg.tracks}": only "fixed" exists so far')
+    if cfg.tracks not in ("fixed", "random"):
+        raise ValueError(f'tracks must be "fixed" or "random", got "{cfg.tracks}"')
+    random_mode = cfg.tracks == "random"
     torch.manual_seed(cfg.seed)  # network init, action sampling and minibatch shuffling
     torch.set_num_threads(2)  # small nets: more threads do not pay off (see reinforce.py)
+    # ``track`` is the evaluation track (and the training track in fixed mode). In random mode
+    # the sim starts on a random track instead, and later rollouts switch it (see below).
     track = load_track(cfg.track)
-    sim = BatchSim(track, env_cfg, n_cars=cfg.n_cars, seed=cfg.seed, auto_reset=True)
+    track_rng = np.random.default_rng(cfg.seed)  # draws the training-track seeds
+    heldout = heldout_tracks(N_HELDOUT) if random_mode else []
+    train_track = track_for_seed(training_seed(track_rng, N_HELDOUT)) if random_mode else track
+    sim = BatchSim(train_track, env_cfg, n_cars=cfg.n_cars, seed=cfg.seed, auto_reset=True)
     actor = GaussianActor(obs_dim(env_cfg), 2, cfg.hidden)
     critic = Critic(obs_dim(env_cfg), cfg.hidden)
     params = list(actor.parameters()) + list(critic.parameters())
     optimizer = torch.optim.Adam(params, lr=cfg.lr)
     run.save_config({"method": "ppo", "seed": cfg.seed,
                      "train": asdict(cfg), "env": asdict(env_cfg)})
-    print(f"ppo on {track.name}: {cfg.n_cars} cars x {cfg.n_steps} steps per update, "
+    where = f"random tracks (new one every {cfg.track_every} rollouts)" if random_mode else track.name
+    print(f"ppo on {where}: {cfg.n_cars} cars x {cfg.n_steps} steps per update, "
           f"{cfg.epochs} epochs of {cfg.minibatch}, actor and critic {obs_dim(env_cfg)}-{'-'.join(map(str, cfg.hidden))}")
 
     obs = sim.reset()  # once: later rollouts continue the same cars
@@ -209,6 +221,19 @@ def train_ppo(cfg: PPOConfig, env_cfg: EnvConfig, run: RunDir) -> None:
     start, env_steps, iteration = time.time(), 0, 0
     while env_steps < cfg.env_steps_budget:
         iteration += 1
+
+        # Random mode: every ``track_every`` rollouts, move all cars to a fresh random track.
+        # The switch happens only here, between rollouts. The previous rollout already took its
+        # bootstrap value (``last_values``) from the old track before this point, and the next
+        # rollout starts from fresh observations, so no advantage estimate ever spans two tracks
+        # and nothing leaks. One sim holds one track, so ``set_track`` takes effect at a full
+        # ``reset()``, which respawns every car; the episodes it cuts are simply dropped (their
+        # partial returns are cleared below, they were never finished).
+        if random_mode and iteration > 1 and (iteration - 1) % cfg.track_every == 0:
+            train_track = track_for_seed(training_seed(track_rng, N_HELDOUT))
+            sim.set_track(train_track)
+            obs = sim.reset()
+            car_return[:], car_len[:] = 0.0, 0.0
 
         # 1. COLLECT
         batch, obs = collect_rollout(sim, actor, critic, obs, cfg.n_steps)
@@ -302,6 +327,12 @@ def train_ppo(cfg: PPOConfig, env_cfg: EnvConfig, run: RunDir) -> None:
             if res.laps > 0:
                 run.save_ghost(iteration, res.lap_t, res.lap_poses, res.best_lap_s)
             line += f"  | eval laps {res.laps}  progress {res.progress_m:6.1f} m"
+            if random_mode:
+                # Deterministic policy, one episode per held-out track it has never trained on.
+                heldout_laps = float(np.mean([evaluate(TorchPolicy(actor), t, env_cfg).laps
+                                              for t in heldout]))
+                row["eval_heldout_laps_mean"] = heldout_laps
+                line += f"  heldout laps {heldout_laps:.2f}"
             if res.laps > 0:
                 line += f"  best lap {res.best_lap_s:.2f} s"
         run.log(row)

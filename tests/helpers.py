@@ -42,6 +42,17 @@ def wall_self_intersects(wall: np.ndarray) -> bool:
     return False
 
 
+def walls_cross(left: np.ndarray, right: np.ndarray) -> bool:
+    """True if the left wall polyline crosses or touches the right wall anywhere.
+
+    Catches what a per-wall self check misses: two sections side by side overlapping through
+    one's left wall and the other's right wall. Slow all-pairs oracle for tests.
+    """
+    a1, a2 = left, np.roll(left, -1, axis=0)
+    b1, b2 = right, np.roll(right, -1, axis=0)
+    return bool(any_crossing(a1[None], a2[None], b1[None], b2[None])[0])
+
+
 class ScriptedOvalPolicy:
     """A hand-written P-controller that laps the oval, wrapped as a ``Policy`` (obs -> action).
 

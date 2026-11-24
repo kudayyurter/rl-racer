@@ -2,7 +2,7 @@
 
 import numpy as np
 import pytest
-from helpers import circle_points, hairpin_points, wall_self_intersects
+from helpers import circle_points, hairpin_points, wall_self_intersects, walls_cross
 
 from racer.track import build_track, catmull_rom_closed, load_track
 
@@ -142,4 +142,6 @@ def test_shipped_tracks_valid():
         t = load_track(name)
         # walls never self-intersect (check every segment pair of each wall, excluding neighbors)
         assert not wall_self_intersects(t.left) and not wall_self_intersects(t.right)
+        # ...and the two walls never cross each other (sections running side by side)
+        assert not walls_cross(t.left, t.right)
     assert 900 <= load_track("twisty").length <= 1400
