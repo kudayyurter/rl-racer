@@ -53,3 +53,12 @@ def test_train_with_directory_or_bad_json_track_prints_one_line(tmp_path, capsys
         err = capsys.readouterr().err
         assert err.startswith("racer train: ") and err.count("\n") == 1
     assert _run_dirs() == before
+
+
+def test_train_finds_default_configs_from_any_directory(tmp_path, monkeypatch, capsys):
+    # The defaults are the repo's configs/, not ./configs: a typo still reaches the config check.
+    monkeypatch.chdir(tmp_path)
+    assert main(["train", "ppo", "--set", "track=twsty"]) == 2
+    err = capsys.readouterr().err
+    assert "twsty" in err and "config file" not in err
+    assert not (tmp_path / "runs").exists()

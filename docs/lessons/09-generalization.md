@@ -440,8 +440,8 @@ iteration 485) instead of a duplicate run.
 Two seeds and 1M steps: this says `track_every = 10` is better *here, early*. It does not say how
 it ends after 2.5M steps, or that 10 is the best value. Neither was measured. A third option the
 project has but did not test is `random_start = true`, spawning cars at random points so that even
-short windows cover whole tracks. It would also move the evaluation's start, so evaluations would
-no longer be comparable with every other run.
+short windows cover whole tracks. Evaluation would not move: it always starts from the start line
+([`evaluate.py`](../../racer/evaluate.py)), so its numbers stay comparable with every other run.
 
 </details>
 

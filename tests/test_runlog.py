@@ -137,3 +137,10 @@ def test_read_metrics_skips_partially_written_last_row(tmp_path):
     with open(run.path / "metrics.csv", "a") as f:
         f.write("3,4,5")   # the first three cells of row 3, no newline yet
     assert run.read_metrics() == [metric_row(1), metric_row(2)]
+
+
+def test_open_does_not_write_into_the_directory(tmp_path):
+    # watch and compare open runs read-only; a mistyped path must not gain folders.
+    RunDir.open(tmp_path)
+    assert list(tmp_path.iterdir()) == []
+    assert RunDir.open(tmp_path).ghosts() == [] and latest_checkpoint(tmp_path) is None

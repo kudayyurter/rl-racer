@@ -34,3 +34,13 @@ def test_evaluate_crashing_policy_has_no_lap():
     assert res.laps == 0 and math.isnan(res.best_lap_s)
     assert res.lap_poses.shape == (0, 3) and res.lap_t.shape == (0,)
     assert res.progress_m < TRACK.length
+
+
+def test_evaluate_starts_on_the_line_even_with_random_start():
+    # Training may spawn cars anywhere; evaluation and ghost laps always start at the line.
+    import dataclasses
+    random_cfg = dataclasses.replace(CFG, random_start=True)
+    a = evaluate(ScriptedOvalPolicy(CFG, TRACK), TRACK, CFG)
+    b = evaluate(ScriptedOvalPolicy(random_cfg, TRACK), TRACK, random_cfg)
+    assert b.best_lap_s == a.best_lap_s
+    np.testing.assert_array_equal(b.lap_poses, a.lap_poses)
