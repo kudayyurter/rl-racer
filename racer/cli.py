@@ -6,6 +6,7 @@ CLI surface is visible (and ``racer --help`` works) from day one.
 """
 
 import argparse
+import importlib
 
 COMMANDS = {
     "drive": "play the game yourself with the keyboard",
@@ -38,6 +39,46 @@ def _drive(args: argparse.Namespace) -> int:
                      frames=args.frames)
 
 
+# One line per learning method: name -> module. Each module defines CONFIG_CLASS (its config
+# dataclass), EXTRA_COLUMNS (extra metrics.csv columns) and train(cfg, env_cfg, run).
+TRAIN_METHODS = {
+    "evolution": "racer.algos.evolution",
+}
+
+
+def _train(args: argparse.Namespace) -> int:
+    # Imported here so `racer --help` doesn't load numpy-heavy training code.
+    from racer.config import load_env_config, load_method_config, parse_overrides
+    from racer.runlog import RunDir
+
+    module = importlib.import_module(TRAIN_METHODS[args.method])
+    overrides = parse_overrides(args.set)
+    if args.seed is not None:
+        overrides["seed"] = args.seed
+    cfg = load_method_config(module.CONFIG_CLASS, args.config or f"configs/{args.method}.toml",
+                             overrides)
+    env_cfg = load_env_config(args.env_config, parse_overrides(args.env_set))
+    run = RunDir.create(args.method, cfg.seed, extra_columns=module.EXTRA_COLUMNS)
+    print(f"run directory: {run.path}")
+    module.train(cfg, env_cfg, run)
+    return 0
+
+
+def _add_train_parser(train: argparse.ArgumentParser) -> None:
+    methods = train.add_subparsers(dest="method", required=True)
+    for name in TRAIN_METHODS:
+        p = methods.add_parser(name, help=f"train with {name}")
+        p.add_argument("--config", help=f"method config TOML (default configs/{name}.toml)")
+        p.add_argument("--env-config", default="configs/env.toml",
+                       help="environment config TOML (default configs/env.toml)")
+        p.add_argument("--seed", type=int, help="random seed (default: the config's seed)")
+        p.add_argument("--set", action="append", default=[], metavar="KEY=VALUE",
+                       help="override a method-config value, e.g. --set track=oval (repeatable)")
+        p.add_argument("--env-set", action="append", default=[], metavar="KEY=VALUE",
+                       help="override an env-config value, e.g. --env-set car.max_lat_accel=9")
+    train.set_defaults(handler=_train)
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="racer", description="RL Racer")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -60,6 +101,8 @@ def build_parser() -> argparse.ArgumentParser:
     drive.add_argument("--frames", type=int, default=30,
                        help="frames to render before the screenshot (default 30)")
     drive.set_defaults(handler=_drive)
+
+    _add_train_parser(subparsers["train"])
     return parser
 
 

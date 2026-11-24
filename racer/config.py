@@ -111,3 +111,35 @@ def load_env_config(path: str | Path, overrides: dict | None = None) -> EnvConfi
     if overrides:
         data = _merge(data, overrides)
     return from_dict(EnvConfig, data)
+
+
+def parse_overrides(pairs: list[str]) -> dict:
+    """Turn ``["car.max_lat_accel=9", "track=oval"]`` into ``{"car": {...}, "track": "oval"}``.
+
+    Values are parsed as TOML (so 9 is an int, [32, 16] a list, true a bool); anything that is
+    not valid TOML, like a bare word, stays a string. Dotted keys build nested dicts. The result
+    goes through the strict loaders, so a mistyped key still raises ConfigError.
+    """
+    out: dict = {}
+    for pair in pairs:
+        key, sep, raw = pair.partition("=")
+        if not sep or not key:
+            raise ConfigError(f"override must look like key=value, got {pair!r}")
+        try:
+            value = tomllib.loads(f"v = {raw}")["v"]
+        except tomllib.TOMLDecodeError:
+            value = raw
+        node = out
+        *parents, leaf = key.split(".")
+        for part in parents:
+            node = node.setdefault(part, {})
+        node[leaf] = value
+    return out
+
+
+def load_method_config(cls, path: str | Path, overrides: dict | None = None):
+    """Load a training-method dataclass (e.g. EvolutionConfig) from TOML plus overrides."""
+    data = load_toml(path)
+    if overrides:
+        data = _merge(data, overrides)
+    return from_dict(cls, data)

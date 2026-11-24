@@ -1,0 +1,10 @@
+# Neuroevolution: a population of small networks, the best survive and mutate.
+track = "twisty"        # tracks/<name>.json, or a path
+population = 128        # cars (networks) per generation
+elite = 16              # survivors copied unchanged into the next generation
+mutation_std = 0.1      # std of the Gaussian noise added to every weight of a child
+hidden = [32]           # hidden layer sizes
+# Placeholder: Task 17 fixes the real budget. Counts car-decisions, not generations.
+env_steps_budget = 2_000_000
+eval_every = 5          # generations between deterministic evaluations + checkpoints
+seed = 0
