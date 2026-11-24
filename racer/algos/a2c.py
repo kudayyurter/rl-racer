@@ -70,17 +70,18 @@ register_loader("a2c", _load_policy)
 # --------------------------------------------------------------------------- 1. COLLECT
 
 def collect_rollout(sim: BatchSim, actor: GaussianActor, critic: Critic, obs: np.ndarray,
-                    n_steps: int, gamma: float):
+                    n_steps: int):
     """Drive every car ``n_steps`` steps from where the last rollout stopped.
 
     No reset: ``obs`` is each car's current observation (the sim auto-respawns finished cars).
     At a truncated step the car's real next state is ``final_obs`` (``obs`` is already the
     respawn), so we ask the critic what that state was worth and fold it into the reward.
-    Returns:
-      batch:    dict of arrays shaped (T, N, ...): obs, actions, rewards (bootstrap added),
-                dones (terminated or truncated), plus ``last_values`` (N,) = V(next obs)
+    Returns (batch, next_obs):
+      batch:    dict of arrays shaped (T, N, ...): ``obs``, ``actions`` (unclipped samples),
+                ``rewards`` (raw, no bootstrap), ``terminated``, ``truncated``, and
+                ``final_values`` = V(final_obs) at truncated steps (0 elsewhere); plus
+                ``last_values`` (N,) = V of the observation after the last step
       next_obs: (N, D) where the next rollout continues
-      finished: list of (car, step) for episodes that ended in this rollout
     """
     n = sim.n_cars
     buf = {k: [] for k in ("obs", "actions", "rewards", "terminated", "truncated", "final_values")}
@@ -170,7 +171,7 @@ def train_a2c(cfg: A2CConfig, env_cfg: EnvConfig, run: RunDir) -> None:
         iteration += 1
 
         # 1. COLLECT
-        batch, obs = collect_rollout(sim, actor, critic, obs, cfg.n_steps, cfg.gamma)
+        batch, obs = collect_rollout(sim, actor, critic, obs, cfg.n_steps)
         env_steps += cfg.n_steps * cfg.n_cars
 
         # 2. RETURNS (truncation bootstrap folded into the rewards, then the n-step recursion)
