@@ -1,7 +1,8 @@
 """Stable-Baselines3 PPO: the answer key for our from-scratch PPO.
 
-Why this exists: SB3 is a widely used, well-tested PPO. We train it on the same Gymnasium
-wrapper of our simulator, with every hyperparameter set to the value our own PPO uses, and write
+Why this exists: SB3 is a widely used, well-tested PPO. We train it on the same simulator
+(one ``BatchSim`` of 16 cars, wrapped as an SB3 ``VecEnv`` below; ``RacerEnv`` stays the
+single-car Gymnasium interface), with every hyperparameter set to the value our own PPO uses, and write
 the same run-directory format (metrics columns, checkpoints, ghosts). ``watch`` and ``compare``
 then treat it like any other method, and when its curve differs from ours the difference is
 the implementation, not the settings. This is the only module that imports SB3.
@@ -11,7 +12,7 @@ How the two are matched (SB3 name <- our PPOConfig name / configs/ppo.toml key):
   SB3 argument                     ours                   notes
   -------------------------------  ---------------------  --------------------------------------
   n_steps                          n_steps                steps per env per rollout
-  n_envs (make_vec_env)            n_cars                 16 parallel copies of the car
+  n_envs (BatchSimVecEnv)          n_cars                 16 cars in ONE BatchSim, like ours
   batch_size                       minibatch              samples per gradient step
   n_epochs                         epochs                 passes over each rollout
   gamma                            gamma
@@ -31,6 +32,11 @@ How the two are matched (SB3 name <- our PPOConfig name / configs/ppo.toml key):
 The last three rows are the settings SB3 does differently by default, so they are overridden.
 The matched values live in configs/sb3.toml; tests/test_sb3.py asserts they equal ppo.toml.
 
+Batched simulator: SB3 used to get 16 separate single-car BatchSims behind a DummyVecEnv, each
+stepped from Python, which ran ~5x slower than our PPO for harness reasons alone. BatchSimVecEnv
+steps one BatchSim of n_envs cars per call, exactly as our PPO does, so env_steps per wall-clock
+second now compares the algorithms and not the plumbing.
+
 Time limits: our env reports a time-limit ending as ``truncated`` (not ``terminated``). SB3's
 vector env records that as ``TimeLimit.truncated`` and the PPO rollout bootstraps the missing
 future with gamma * V(final observation), exactly what our PPO does in
@@ -45,17 +51,16 @@ from pathlib import Path
 import numpy as np
 import torch
 from stable_baselines3 import PPO
-from stable_baselines3.common.env_util import make_vec_env
-from stable_baselines3.common.vec_env import DummyVecEnv
+from gymnasium import spaces
+from stable_baselines3.common.vec_env import VecEnv
 
 from racer.config import EnvConfig
 from racer.evaluate import evaluate
-from racer.gym_env import RacerEnv
 from racer.nets_torch import LOG_STD_INIT
 from racer.policy import register_loader
 from racer.runlog import RunDir
-from racer.sim import obs_dim
-from racer.track import load_track
+from racer.sim import BatchSim, obs_dim
+from racer.track import Track, load_track
 
 # SB3 reports no value loss or KL through our channel, so only the standard columns are logged.
 EXTRA_COLUMNS: tuple[str, ...] = ()
@@ -128,14 +133,85 @@ def _load_policy(ckpt: dict) -> SB3Policy:
 register_loader("sb3", _load_policy)
 
 
-def make_envs(cfg: SB3Config, env_cfg: EnvConfig) -> DummyVecEnv:
-    """``n_envs`` copies of RacerEnv in one process (the env is cheap, so no subprocesses).
+class BatchSimVecEnv(VecEnv):
+    """One ``BatchSim`` of ``n_envs`` cars as an SB3 ``VecEnv``.
 
-    ``seed=cfg.seed`` gives env i the seed ``cfg.seed + i``. Without it every RacerEnv would
-    keep its own default seed 0 and all copies would behave identically.
+    Follows SB3's ``DummyVecEnv`` conventions so PPO treats it like any vector env:
+    - ``dones = terminated | truncated``; the sim auto-resets, so the returned obs of a done
+      car is already its respawn observation and the pre-reset one goes in
+      ``info["terminal_observation"]``.
+    - ``info["TimeLimit.truncated"]`` is True only for truncation (not a crash), which tells PPO
+      to bootstrap from the value of the final observation.
+    - ``info["episode"] = {"r", "l", "t"}`` on finished episodes: what SB3's ``Monitor`` wrapper
+      would add, and what fills ``model.ep_info_buffer``.
+    Observation and action spaces are identical to ``RacerEnv``'s.
     """
-    return make_vec_env(RacerEnv, n_envs=cfg.n_envs, seed=cfg.seed, vec_env_cls=DummyVecEnv,
-                        env_kwargs={"track": cfg.track, "env_config": env_cfg})
+
+    def __init__(self, track: Track, env_cfg: EnvConfig, n_envs: int, seed: int = 0):
+        super().__init__(n_envs,
+                         spaces.Box(-1.0, 1.0, (obs_dim(env_cfg),), dtype=np.float32),
+                         spaces.Box(-1.0, 1.0, (2,), dtype=np.float32))
+        # auto_reset=True: a finished car respawns inside step(), so every car always drives.
+        self.sim = BatchSim(track, env_cfg, n_cars=n_envs, seed=seed, auto_reset=True)
+        self._actions = np.zeros((n_envs, 2))
+        self._ep_return = np.zeros(n_envs)   # what Monitor tracks per env
+        self._ep_len = np.zeros(n_envs, dtype=int)
+        self._start = time.time()
+
+    def reset(self):
+        # The sim's RNG is seeded once at construction, so VecEnv.seed() has no effect here.
+        self._ep_return[:] = 0.0
+        self._ep_len[:] = 0
+        return self.sim.reset().astype(np.float32)
+
+    def step_async(self, actions: np.ndarray) -> None:
+        self._actions = np.clip(np.asarray(actions, dtype=float), -1.0, 1.0)
+
+    def step_wait(self):
+        res = self.sim.step(self._actions)
+        dones = res.terminated | res.truncated
+        rewards = res.reward.astype(np.float32)
+        self._ep_return += res.reward
+        self._ep_len += 1
+        infos: list[dict] = []
+        for i in range(self.num_envs):
+            info = {"lap_completed": bool(res.lap_completed[i]), "laps": int(self.sim.laps[i]),
+                    "TimeLimit.truncated": bool(res.truncated[i] and not res.terminated[i])}
+            if res.lap_completed[i]:
+                info["lap_time"] = float(res.lap_time[i])
+            if dones[i]:
+                info["terminal_observation"] = res.final_obs[i].astype(np.float32)
+                info["episode"] = {"r": float(self._ep_return[i]), "l": int(self._ep_len[i]),
+                                   "t": round(time.time() - self._start, 6)}
+                self._ep_return[i] = 0.0
+                self._ep_len[i] = 0
+            infos.append(info)
+        return res.obs.astype(np.float32), rewards, dones, infos
+
+    # --- The rest of the VecEnv interface. PPO.learn only touches reset, step, seed and
+    # get_attr("render_mode") (inside VecEnv.__init__); there are no per-env objects to expose.
+
+    def close(self) -> None:
+        pass
+
+    def get_attr(self, attr_name: str, indices=None) -> list:
+        if attr_name == "render_mode":
+            return [None] * self.num_envs
+        raise AttributeError(f"BatchSimVecEnv has no per-env attribute {attr_name!r}")
+
+    def set_attr(self, attr_name: str, value, indices=None) -> None:
+        raise NotImplementedError("BatchSimVecEnv has no per-env objects to set attributes on")
+
+    def env_method(self, method_name: str, *method_args, indices=None, **method_kwargs) -> list:
+        raise NotImplementedError("BatchSimVecEnv has no per-env objects to call methods on")
+
+    def env_is_wrapped(self, wrapper_class, indices=None) -> list[bool]:
+        return [False] * self.num_envs
+
+
+def make_envs(cfg: SB3Config, env_cfg: EnvConfig) -> BatchSimVecEnv:
+    """``n_envs`` cars in one BatchSim, seeded with ``cfg.seed``."""
+    return BatchSimVecEnv(load_track(cfg.track), env_cfg, n_envs=cfg.n_envs, seed=cfg.seed)
 
 
 CONFIG_CLASS = SB3Config  # names the CLI looks up for every method (see racer/cli.py)
