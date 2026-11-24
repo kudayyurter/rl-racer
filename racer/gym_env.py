@@ -48,9 +48,12 @@ class RacerEnv(gym.Env):
         return obs[0].astype(np.float32), {}
 
     def step(self, action):
-        # Explicit shape check: BatchSim would happily broadcast a wrong-sized action.
+        # Check the shape before anything reshapes it: BatchSim would happily broadcast a
+        # wrong-sized action, and reshape(1, 2) would accept a (2, 1) column or a (1, 2) batch.
+        if np.shape(action) != (2,):
+            raise ValueError(f"expected one (steer, throttle) action of shape (2,), "
+                             f"got shape {np.shape(action)}")
         action = np.clip(np.asarray(action, dtype=float), -1.0, 1.0).reshape(1, 2)
-        assert action.shape == (1, 2), f"expected one (steer, throttle) action, got {action.shape}"
         res = self._sim.step(action)
         info = {"lap_completed": bool(res.lap_completed[0]), "laps": int(self._sim.laps[0])}
         if res.lap_completed[0]:

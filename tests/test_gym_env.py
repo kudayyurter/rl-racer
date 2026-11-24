@@ -3,6 +3,7 @@
 import dataclasses
 
 import numpy as np
+import pytest
 from gymnasium.utils.env_checker import check_env
 
 from racer.config import EnvConfig
@@ -57,6 +58,16 @@ def test_out_of_range_actions_are_clipped():
     obs_a = a.step(np.array([5.0, -9.0], dtype=np.float32))[0]
     obs_b = b.step(np.array([1.0, -1.0], dtype=np.float32))[0]
     np.testing.assert_array_equal(obs_a, obs_b)
+
+
+@pytest.mark.parametrize("bad", [[0.0, 1.0, 0.5, 0.5], [[0.0], [1.0]], [[0.0, 1.0]], 0.5])
+def test_wrong_action_shape_is_rejected(bad):
+    # Two cars' actions, a column, a batch of one, a scalar: each must be refused, not
+    # reshaped or broadcast into something that happens to fit.
+    env = RacerEnv("oval")
+    env.reset(seed=0)
+    with pytest.raises(ValueError, match=r"\(steer, throttle\)"):
+        env.step(np.array(bad))
 
 
 def test_info_has_plain_python_values():
