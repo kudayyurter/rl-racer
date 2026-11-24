@@ -12,7 +12,8 @@ the pieces, reads the diff against `a2c.py`, and then does what the whole projec
 for: runs our from-scratch PPO next to Stable-Baselines3's PPO (SB3, a widely used and tested
 implementation) on the same simulator with the same settings, as an answer key. Spoiler: they
 match (both lap twisty on 3 of 3 seeds, best laps 41.53 s for ours and 42.12 s for SB3's), and
-they share a habit worth a section of its own: after learning to lap, both drive slower and slower.
+they share a habit worth a section of its own: after learning to lap, both end the run driving
+slower than their own best checkpoints.
 
 Files: [`racer/algos/ppo.py`](../../racer/algos/ppo.py), [`racer/algos/sb3_ppo.py`](../../racer/algos/sb3_ppo.py),
 [`configs/ppo.toml`](../../configs/ppo.toml), [`configs/sb3.toml`](../../configs/sb3.toml),
@@ -449,8 +450,9 @@ simulator with the same numbers would show it as a gap.
 
 **Wall clock.** Ours took 971-1,016 s, SB3 1,072-1,079 s for the same 4,501,504 steps
 (4.43-4.64k against 4.17-4.20k steps/s, all six sharing the machine). Both drive one `BatchSim`
-of 16 cars, so the 5-11% difference is SB3's own Python per step (its buffer, callbacks, logger
-and the `VecEnv` info dicts). The time plot (below) is the steps plot stretched by that factor.
+of 16 cars, so the 5-11% difference is most likely SB3's own Python per step (its buffer,
+callbacks, logger and the `VecEnv` info dicts); with six runs sharing the machine, it is not a
+clean benchmark. The time plot (below) is the steps plot stretched by that factor.
 (At its far right our median line jumps: seed 2 finished at 971 s, after which the "median" is of
 the two seeds still running.)
 
@@ -459,11 +461,19 @@ the two seeds still running.)
 **Against A2C (lesson 06).** PPO first lapped twisty after 81,920-112,640 steps; A2C needed
 261,120-680,960. Count the evaluations from the first lap onwards that did *not* complete a lap:
 A2C 228 of 829, 243 of 818 and 158 of 747; our PPO 2 of 432, 0 of 430 and 59 of 431; SB3 25 of
-433, 17 of 431 and 24 of 430. The bounded update did what it was designed to do: a PPO policy that
-has learned to lap almost never forgets how. (A word on training returns: SB3's
-`train_return_mean` column is a rolling mean over its last 100 finished episodes, ours is the mean
-of the episodes that ended in this rollout, so SB3's curve is smoother by construction; they are
-not compared here.)
+433, 17 of 431 and 24 of 430. On five of the six PPO runs the bounded update did what it was
+designed to do: a policy that had learned to lap almost never lost it again. Our seed 2 is the
+exception: 59 of its 431 evaluations after the first lap failed, 48 of them in the second half of
+the run (22% of those evaluations, in A2C's 21-30% range).
+
+A2C has the better *laps*, though. Lesson 06's twisty runs set fastest laps of 39.03-39.27 s,
+2.3-2.5 s faster than the fastest PPO run here (41.53 s; all six span 41.53-42.93 s), and two of its three final evaluations drove
+both laps (41.75 s and 41.50 s), which none of the six PPO finals did. Same environment, same
+reward, same budget: so the reward does pay for laps that fast, and whatever slows PPO down
+(next section) is in the optimization, not in what the reward asks for. (A word on training
+returns: SB3's `train_return_mean` column is a rolling mean over its last 100 finished episodes,
+ours is the mean of the episodes that ended in this rollout, so SB3's curve is smoother by
+construction; they are not compared here.)
 
 ### But it gets slower
 
@@ -472,7 +482,7 @@ the first 0.5-1M steps, the evaluation progress of both implementations sinks fr
 to around 2,000 m. Every one of the six final evaluations is "1 lap, no crash": the car is still
 driving when the 90 s limit ends the episode, because its laps now take 46-54 s and two of them no
 longer fit. [`lap_counts.py`](scripts/lap_counts.py) splits each run's 440 evaluations into
-quarters:
+quarters (output condensed to one line per run; the script prints a header line per run):
 
 ```
 uv run python docs/lessons/scripts/lap_counts.py runs/ppo-20261123-220355-s0 ...
@@ -485,8 +495,12 @@ sb3-20261123-220400-s1:  Q1  11/ 23/ 75 lap 43.31 s | Q2   2/ 65/ 43 lap 46.13 s
 sb3-20261123-220401-s2:  Q1  13/ 77/ 19 lap 47.85 s | Q2  14/ 96/  0 lap 47.35 s | Q3   1/109/  0 lap 49.32 s | Q4   6/105/  0 lap 48.93 s
 ```
 
-Both implementations do it, on every seed (SB3 seed 1 holds on longest), so it is not a bug in our
-code: it is what PPO with these settings does on this task. What changed in the driver?
+Both implementations do it. Measured against each run's own fastest checkpoint, every seed ends
+slower (the table below); as a steady trend over the run it holds for four of the six. SB3 seed 1
+holds on to two-lap evaluations longest, and the two seed-2 runs show no trend after their first
+quarter: our seed 2's quarter medians are 47.15, 49.58, 47.58 and 46.92 s and its final evaluation
+reached 2,242 m, SB3 seed 2's are 47.85, 47.35, 49.32 and 48.93 s. Since SB3 does the same as ours,
+it is not a bug in our code: it is what PPO with these settings does on this task. What changed in the driver?
 [`noisy_vs_mean_laps.py`](scripts/noisy_vs_mean_laps.py), which now takes `RUN@ITERATION` to load
 any checkpoint, compares each run's fastest-lap checkpoint with its final one on the opening
 straight (the deterministic driver):
@@ -510,21 +524,25 @@ What the logs show alongside the drift (seed 0; `eval_history.py`, `metrics.csv`
 
 - **The exploration noise collapsed.** `log_std` went from -0.5 at the start to -0.92 (mean over
   iterations 100-149) and -3.80 at the end: a std of 0.02, against about 0.4 when the car was
-  fastest. There is
-  no entropy bonus (`entropy_coef = 0`, the SB3 default), so nothing resists the shrinking. With
-  that little noise the policy hardly tries anything new: it cannot find out that more throttle
-  on the straight would pay, for the same reason as a saturated mean in lesson 06 gets no
-  gradient.
+  fastest. There is no entropy bonus (`entropy_coef = 0`, the SB3 default), so nothing resists
+  the shrinking. This is not lesson 06's saturated mean: inside `[-1, 1]` a small `σ` still has a
+  nonzero expected gradient (the score `(a - μ)/σ²` grows as `σ` shrinks; the estimate gets
+  noisier, not zero). Two other things happen instead. A probe of ±0.02 throttle barely changes
+  what the car does, so the advantages say little about which direction is better. And the clip
+  limits how far each update can move the mean: a ratio of `1 ± ε` is reached by moving the mean
+  roughly `ε·σ` in action units, 0.004 at `σ = 0.02` against 0.08 at `σ = 0.4`, so climbing back
+  to more throttle on the straight would take many times as many updates.
 - **The updates grew in policy terms.** `approx_kl`'s median over the last tenth of the run was
   0.053 (seed 0), 0.043 (seed 1), 0.025 (seed 2), against 0.028, 0.022, 0.021 over the whole run,
-  and `clip_frac` rose to 0.39, 0.35 and 0.27. Moving a Gaussian's mean by `Δμ` changes a
+  and `clip_frac` rose to 0.39, 0.35 and 0.27, from whole-run medians of 0.281, 0.244 and 0.234
+  that were already above the 0.1-0.2 rule of thumb. Moving a Gaussian's mean by `Δμ` changes a
   typical sample's log-probability by about `Δμ / σ` and the KL by `Δμ² / (2σ²)`, so the same
   nudge to the mean is a 400 times bigger KL at `σ = 0.02` than at `σ = 0.4`. The clip then
   silences a third of every batch.
 
 These are correlations, not a proven cause. The usual remedies are a learning rate that decays to
-zero over the run (the PPO paper does this for MuJoCo; SB3's default is constant, so both
-implementations here keep it constant), an entropy bonus, or stopping an update's epochs early
+zero over the run (the PPO paper's MuJoCo runs use a constant 3e-4 and anneal only for Atari, but
+OpenAI's `baselines` PPO code anneals the learning rate linearly for MuJoCo too; SB3's default is constant, so both implementations here keep it constant), an entropy bonus, or stopping an update's epochs early
 when the KL passes a target (SB3's `target_kl`). None is used here, so that the comparison with
 SB3 stays on its defaults. Lesson 08 is about the fastest lap itself, and experiments 1 and 2 below
 change how far each update may move.
@@ -577,22 +595,34 @@ uv run racer watch runs/ppo-20261123-220355-s0
 uv run racer watch runs/sb3-20261123-220359-s0          # SB3 runs open the same way
 ```
 
-The best-lap curve drops to 42.13 s within the first 225,280 steps and stays flat; the progress
-curve under it holds at two full laps for a while and then settles around 2,000 m, the slowdown
-above. The live car is the final policy: watch how gently it takes the opening straight compared
-with what A2C's drivers did. The ghosts are the newest five recorded laps, all from the slow end of
-the run (around 51 s); the run saved one per lapping evaluation, 430 in all, so a large
-`--ghosts` value also brings back the 42-44 s laps of iterations 100-300 to race against. In the network panel the
-throttle output sits fully orange on the straights because the unclipped mean is above 1 (+3.7 at
-the start line), and the steering output pins at full lock on about a fifth of the decisions.
+![The viewer on our PPO seed 0, ten seconds into a lap on the opening straight](../img/ppo.png)
+
+(Screenshot: `uv run racer watch runs/ppo-20261123-220355-s0 --screenshot docs/img/ppo.png --frames 600`,
+600 frames, so 10.000 s into the live car's lap.) Unlike `racer compare`'s "best lap so far", the
+viewer's **best eval lap** panel plots each evaluation's own best lap, so the slowdown is right
+there: down to about 42 s early, then a slow climb to the final evaluation's 51.5 s. The **eval
+progress** panel shows the same thing in meters, a long, slight slide from two full laps to the
+final 1,985 m. The status block keeps the record separately: best lap 0:42.133, from the evaluation
+at iteration 110. The live car is the final policy; in the screenshot it is doing 89 km/h
+(24.7 m/s) ten seconds in, on a straight it could take far faster (the fastest checkpoint reached
+33.4 m/s by 150 m, the table above). The ghosts are the newest five recorded laps (the status block
+says iterations 2180-2198), all from the slow end of the run and driving at nearly the same pace
+as the live car, so they sit on top of it; the run saved one ghost per lapping evaluation, 430 in
+all, so a large `--ghosts` value also brings back the 42-44 s laps of iterations 100-300 to race
+against. In the network panel the output values are small in the screenshot (steer +0.09,
+throttle +0.17): the unclipped throttle mean is above 1 near the start line (+3.7 on it) and only
+briefly elsewhere, on 7% of the final evaluation's decisions (the unbounded-mean table above), so
+the throttle node shows full orange only for those moments.
+
 ## Experiments
 
 All three experiments train our PPO on twisty with a budget of **1,500,000 env steps** instead of
 4.5M (`--set env_steps_budget=1500000`), seeds 0 and 1, and compare against the defaults run with
-the same budget (`runs/ppo-20261123-222234-s0`, `runs/ppo-20261123-222235-s1`; their first laps and fastest
-laps came at exactly the iterations of the main runs', 45 and 110 for seed 0, 55 and 270 for seed 1). Runs took 298-347 s with six sharing the machine (the `epochs = 3` ones 260-267 s), 2026-11-23.
-Two seeds are few: read the results as "what can
-happen", not as a ranking.
+the same budget (`runs/ppo-20261123-222234-s0`, `runs/ppo-20261123-222235-s1`; their first laps
+and fastest laps came at exactly the iterations of the main runs', 45 and 110 for seed 0, 55 and
+270 for seed 1). Runs took 298-347 s with six sharing the machine (the `epochs = 3` ones
+260-267 s), 2026-11-23. Two seeds are few: read the results as "what can happen", not as a
+ranking.
 
 ```sh
 uv run racer train ppo --set env_steps_budget=1500000            # the defaults at this budget, --seed 0 and 1
@@ -683,8 +713,9 @@ uv run racer train ppo --set env_steps_budget=1500000 --set epochs=3
   34 s, `run_summary.py`).
 - **Fewer epochs, smaller moves.** The KL halved (0.005 against 0.010-0.011) and the clip fraction
   fell from 0.14 to 0.06: with fewer passes, fewer samples reach the band's edge.
-- **And on seed 0 the slowdown did not happen within 1.5M steps**: 33 of its last 38 evaluations
-  still drove two laps (`lap_counts.py`), against 0 of 38 for the 10-epoch run, and it set the
+- **And seed 0 did not lose its two laps within 1.5M steps**: 33 of its last 38 evaluations
+  still drove two laps (`lap_counts.py`), against 0 of 38 for the 10-epoch run, although its
+  median lap still crept up a little (41.97, 43.52, 43.32 s in quarters 2-4), and it set the
   fastest lap of any run in this lesson, 40.93 s. Seed 1 slowed down as the defaults did. One seed
   in two is not a result, but it points the same way as the main runs' logs: smaller policy moves
   per update, less drift.
@@ -748,5 +779,5 @@ uv run racer train ppo --set env_steps_budget=1500000 --set lam=1.0
 | [`test_sb3_config_matches_ppo_toml`](../../tests/test_sb3.py#L40-L57) | every setting shared by `ppo.toml` and `sb3.toml` is the same number |
 | [`test_vec_env_done_step_semantics`](../../tests/test_sb3.py#L129-L165) | SB3's vector env reports crashes and time limits the way SB3 expects, so it bootstraps truncation like we do |
 
-Next: 08 · Fastest lap (coming): both PPOs learned to lap twisty in about 100,000 steps and then
-drove slower for the rest of the run. Lesson 08 asks what the reward actually pays for.
+Next: 08 · Fastest lap (coming): both PPOs learned to lap twisty in about 100,000 steps and
+ended the run slower than their best checkpoints. Lesson 08 asks what the reward actually pays for.
