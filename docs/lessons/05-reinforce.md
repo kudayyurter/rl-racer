@@ -353,12 +353,15 @@ uv run python docs/lessons/scripts/gradient_noise.py runs/reinforce-20261123-204
 
 Two batches of 32 whole episodes (43,200 decisions each) from the *same* policy point in
 directions with cosine similarity 0.40 on average, and some pairs point in partly opposite
-directions (-0.30). With 8 episodes per batch the agreement drops to 0.11, barely above pure noise
-(the second ratio, 0.376, is close to the 0.354 that unrelated vectors would give). (At this checkpoint
-nearly every car drives the full 90 s, so an 8-episode batch usually holds all 16 episodes,
-finishing on the same tick: 21,506 decisions on average, not a quarter of 43,200.) That is the price of the simple estimator: each update needs tens of thousands of
-decisions to point roughly the right way, and each batch buys only one update. Lesson 06's critic
-attacks exactly this.
+directions (-0.30). With 8 episodes per batch the agreement drops to 0.11, barely above pure
+noise: the second ratio, 0.376, is close to the 0.354 that zero-mean noise would give.
+
+At this checkpoint nearly every car drives the full 90 s, so an 8-episode batch usually holds all
+16 episodes, finishing on the same tick: 21,506 decisions on average, not a quarter of 43,200.
+
+That is the price of the simple estimator: each update needs tens of thousands of decisions to
+point roughly the right way, and each batch buys only one update. Lesson 06's critic attacks
+exactly this.
 
 ## Two biases
 
@@ -377,8 +380,8 @@ decisions before the cutoff it is `12.3 × (1 - 0.99^k)`: 0.12 on the last step,
 time-limited episode the same good driving is credited with less and less, down to almost nothing,
 and those steps form a sizeable share of the data (up to 300 of 1,350 decisions per such episode).
 
-Is this "wrong"? Strictly, plain Monte Carlo REINFORCE is unbiased for the objective it is given:
-the discounted return *of a 90 s episode*. The trouble is that a policy that cannot see the clock
+Is this "wrong"? Strictly, plain Monte Carlo REINFORCE is unbiased for the objective it is given
+(up to the dropped `γ^t` from the caveat above): the discounted return *of a 90 s episode*. The trouble is that a policy that cannot see the clock
 cannot act on that objective anyway; what we want is a car that drives well everywhere, and
 for that the time-limit cut is a bias in the weights: a perfectly good action at second 88 gets
 a weight near 0, as if it had not mattered. Lesson 06 fixes it by asking a critic what the state
@@ -430,7 +433,7 @@ ways: as the *noisy* policy that training optimized (32 episodes with sampled ac
 0), and as its *mean* (the deterministic evaluation every lesson's numbers use), and reads the
 evaluation history from `metrics.csv`.
 
-| track | seed | run directory | updates | noisy policy: laps 0/1/2 (of 32) | mean policy, final | mean policy: evaluations that lapped |
+| track | seed | run directory | updates | noisy policy: laps 0/1/2 (of 32) | mean policy, final: where it ended, top speed | mean policy: evaluations that lapped |
 |---|---|---|---|---|---|---|
 | oval | 0 | `runs/reinforce-20261123-204929-s0` | 147 | 9 / 8 / **15** | crash at 558 m, 35.5 m/s | 3 of 30: iterations 25-35 (first at 1,071,712 steps) |
 | oval | 1 | `runs/reinforce-20261123-204930-s1` | 140 | 9 / 8 / **15** | crash at 225 m, 28.9 m/s | **0 of 28: never** |
@@ -456,16 +459,46 @@ the noisy driver lap and its own mean not?
   over sampled episodes. The single trajectory you get by always taking the mean is never driven
   in training, so whether it works is an accident. And the noise never shrinks to make the two
   converge: with ~140 Adam steps of `lr = 3e-4`, `log_std` moved from -0.50 to -0.52 (std 0.61 to
-  0.59-0.60, `log_std_mean` in `metrics.csv`). Each parameter can move by at most about
-  `lr` per Adam step, so in 140 updates no weight moves by more than about 0.04.
-- **Clipping makes the noisy driver slower than its mean.** Noise around a throttle mean is
-  clipped at +1 more often than at -1: at mean 0.35 and std 0.6, the throttle the car actually
-  gets averages 0.31. Over whole episodes the measured averages are lower still: 0.26-0.27 for the
-  noisy policy against 0.35-0.36 for the mean on seeds 1 and 2 (part of that gap is that the noisy
-  car visits different states, where the network asks for different things). The mean reaches the
-  first turn at 28.9-29.0 m/s; lesson 02 computed 24.5 m/s as the most the oval's turns allow at
-  grip 12. That is the braking problem again: training found "go about this fast, and the noise
-  slows you down"; driven without the noise, it is too fast.
+  0.59-0.60, `log_std_mean` in `metrics.csv`). An Adam step moves each parameter by roughly
+  `lr` (more when its recent gradients agree, so this is a typical size, not a hard bound), and
+  [`docs/lessons/scripts/weight_change.py`](scripts/weight_change.py), which rebuilds each run's
+  initial actor from its seed, measures the largest change of any of the 5,124 parameters over
+  the whole run as 0.045-0.049 (median 0.017-0.020), about `lr × updates`.
+- **The noise itself slows the car down, because the brake is twice the engine.** The car turns
+  a throttle command `c > 0` into `8c` m/s² and `c < 0` into `16c` m/s² ([car.py#L60](../../racer/car.py#L60),
+  `max_accel = 8`, `max_brake = 16` in [`configs/env.toml`](../../configs/env.toml)). So noise
+  around a throttle mean does not average out: a sample 0.6 below the mean brakes twice as hard as
+  a sample 0.6 above it accelerates. Compare the two drivers where they do the same thing, on the
+  opening straight before the first turn (from the `noisy_vs_mean_laps.py` output above):
+
+  | seed | applied throttle before 215 m, noisy / mean | speed at 150 m, noisy (median) / mean |
+  |---|---|---|
+  | 0 | 0.33 / 0.37 | 22.7 / 29.4 m/s |
+  | 1 | 0.32 / 0.38 | 21.5 / 28.8 m/s |
+  | 2 | 0.33 / 0.39 | 22.3 / 28.9 m/s |
+
+  The commands differ by only 0.04-0.06 on average, the speeds by 6-7 m/s.
+  [`docs/lessons/scripts/noisy_throttle.py`](scripts/noisy_throttle.py) does the arithmetic for a
+  throttle mean of 0.35 with std 0.6:
+
+  ```
+  uv run python docs/lessons/scripts/noisy_throttle.py 0.35 0.6 150
+    samples below 0 (braking): 28.0%, clipped at +1: 13.9%
+    mean only, no noise                           E[accel]  2.80 m/s^2  ->  29.0 m/s after 150 m
+    noise + clipping, brake as strong as engine   E[accel]  2.48 m/s^2  ->  27.3 m/s after 150 m
+    noise + clipping, real brake                  E[accel]  1.67 m/s^2  ->  22.4 m/s after 150 m
+  ```
+
+  (`v = sqrt(2 a d)` from standstill, drag ignored.) Clipping at +1 accounts for a small part;
+  the asymmetric brake for most of it, and the prediction, 22.4 against 29.0 m/s, matches the
+  measured speeds. So the noisy driver arrives at the first turn at about 22 m/s, under the
+  24.5 m/s that lesson 02 computed as the most the oval's turns allow at grip 12, and the mean
+  arrives at about 29 m/s and runs wide. Training found "this much throttle, plus noise that
+  brakes"; driven without the noise, it is too fast. (On seeds 1 and 2 the noisy cars' *top* speed over
+  a whole episode, 30.4-30.5 m/s median, is still higher than the mean's 28.9-29.0: the noisy cars
+  that survive the first turn go on to drive one or two laps with more straights to accelerate
+  on, while the mean's episode ends in that first turn, at its top speed. Seed 0's mean gets
+  through the first turn and reaches 35.5 m/s before crashing in the second.)
 - **The iterates jump around.** On seed 2, the mean lapped at iterations 50-80 (four of them with
   both laps, down to 28.9 s) and crashed at 85 and every evaluation after; on seed 0 it crashed
   in the second turn (~560 m) or the first (~220 m) for the rest of the run. With gradients as
@@ -473,10 +506,11 @@ the noisy driver lap and its own mean not?
   driver from one side of "brakes in time" to the other.
 
 **On twisty, plain REINFORCE fails completely.** On all three seeds, 0 of 32 noisy episodes and 0
-deterministic evaluations completed a lap. All six final policies, noisy and mean, end in the
-first hairpin at 276-278 m after the 250 m start straight, the same trap lesson 04's evolution
-fell into on seed 0: flat out down the straight (seed 0's mean reaches the 50 m/s cap, average
-applied throttle 0.97) and no braking. Escaping needs a policy that brakes hard at the right
+deterministic evaluations completed a lap. All three mean policies end in the first hairpin at
+277-278 m after the 250 m start straight, and so do most noisy episodes (median distance 274-276 m,
+quartiles 269-282 m, from the `noisy_vs_mean_laps.py` output above). It is the same trap lesson
+04's evolution fell into on seed 0: fast down the straight (seed 0's mean applies full throttle,
+1.00 on average before 215 m, and reaches the 50 m/s cap) and no braking in time. Escaping needs a policy that brakes hard at the right
 moment *and* turns, and the gradient towards that is buried in noise when every episode ends in
 the same wall. REINFORCE's noise, its few updates and its crash-dominated returns are exactly
 what the next lesson's critic addresses: A2C laps twisty on all three seeds.
@@ -539,9 +573,15 @@ laps at iteration 25, one lap at 30 and 35).
   top speed 24.4 against 12.0 m/s, 32 of 32 episodes crashing against 19; seed 1: 7.6 against
   6.1 m/s, 19 against 15. That fits the prediction: with a 1.3 s horizon a crash a few seconds
   ahead barely weighs on the decisions that caused it (the acceleration on the straight), while the
-  progress those decisions earn right now counts in full. Its mean episode length stayed lower
-  too (seed 0, every third iteration from 10 to 28: 978-1,241 decisions, against 1,151-1,307
-  with 0.99, `episode_len_mean`): its cars crashed sooner.
+  progress those decisions earn right now counts in full.
+- **The crawling phase did not get worse; it got shallower.** The prediction pointed the other
+  way (sitting still is cheaper relative to a crash), but the 1.3 s horizon also weakens the push
+  away from the actions that lead to walls. Seed 1's mean policy never parked with `γ = 0.95`
+  (its evaluations drove 60-214 m from iteration 5 on), while with 0.99 it stood at 0.0 m from
+  iteration 10 to 25 ([`eval_history.py`](scripts/eval_history.py)). Over iterations 10-28 the
+  mean episode length was 1,176 against 1,251 decisions on seed 0 and 1,215 against 1,244 on
+  seed 1 ([`metric_window.py`](scripts/metric_window.py) on `episode_len_mean`, every row): with
+  0.95 the cars crashed sooner rather than crawled longer.
 - Neither got a deterministic mean that laps reliably, as in the main runs.
 
 Two seeds and one short budget: suggestive, not conclusive. The shorter horizon makes the policy
@@ -555,8 +595,8 @@ greedier for progress and blinder to crashes, which on this track is the wrong t
 fewer episodes per batch (more updates, each noisier), a larger learning rate (bigger steps), or
 both. All plain REINFORCE: no baseline, normalization, entropy or clipping.
 
-**Predict.** With 8 episodes per batch instead of 32, each update costs about a quarter as many
-decisions, so the run gets about four times as many. Does it learn faster, or does the extra
+**Predict.** With 8 episodes per batch instead of 32, each update should cost about a quarter as
+many decisions, so the run should get about four times as many. Does it learn faster, or does the extra
 noise (cosine 0.11 instead of 0.40 above) cancel that? Does a learning rate 10× larger fix the
 noisy/mean gap by letting the std shrink?
 
@@ -606,15 +646,24 @@ evaluations" counts deterministic evaluations with at least one lap
   `stochastic_vs_mean.py`) and the car stood still in
   every evaluation, 21 of 21. The same push that ends the crawling phase faster on lucky seeds
   makes it deeper on unlucky ones.
-- **More, noisier updates made things worse.** With 8 episodes per batch, every seed lapped for
-  a while (seed 2 down to 29.9 s, at iteration 135), then fell into "flat out, crash in the
-  first turn" and stayed there: seed 0's last 293 evaluations (iteration 100 to the end) all crash
-  between 145 and 240 m.
-  At its iteration 300, `policy_means.py` shows a throttle mean between +1.15 and +2.64 on every
-  state of the evaluation episode, so with std 0.6 almost every sample is clipped to full
-  throttle; all 32 noisy episodes crash at an applied throttle of 0.99. Once the mean sits far
-  above 1, different samples give the same action, and the gradient has almost nothing to
-  compare. Lesson 06 looks at this unbounded-mean problem from the other side.
+- **The update count was not 4× but 5-11×** (702-1,558 updates against 129-147). With fewer
+  episodes per batch than the 16 cars, the batch is closed by the first 8 to finish, and once a
+  policy crashes early those are short: at seed 0's iteration 300 a batch was only 1,701
+  decisions (`batch_bias.py ... 300 8`), against roughly 35,000-43,000 for the defaults. The
+  batch rule ties the batch size to episode length: the worse the policy crashes, the smaller
+  and more frequent its updates.
+- **More, noisier updates made things worse.** With 8 episodes per batch, every seed's mean
+  lapped for a while (seed 2 down to 29.9 s, at iteration 135), then stopped lapping for good.
+  Seed 0 fell all the way into "flat out, crash in the first turn": its last 293 evaluations
+  (iteration 100 to the end) all crash between 145 and 240 m. At its iteration 300,
+  `policy_means.py` shows a throttle mean between +1.15 and +2.64 on every state of the
+  evaluation episode, so with std 0.6 almost every sample is clipped to full throttle, and all 32
+  noisy episodes crash at an applied throttle of 0.99. Once the mean sits far above 1, different
+  samples give the same action, and the gradient has almost nothing to compare. Lesson 06 looks
+  at this unbounded-mean problem from the other side. Seeds 1 and 2 did not go that far: their
+  final means apply 0.71 and 0.49 on the opening straight (`noisy_vs_mean_laps.py`), crash in the
+  first turn at 198 and 210 m, and seed 2's noisy policy still drives both laps in 5 of 32
+  episodes.
 - **More episodes with a larger rate**: no better than the defaults at the end (all three means
   crash at about 560 m, the second turn), with fewer updates (74-78).
 

@@ -5,10 +5,15 @@ mean itself. This script compares the two for each checkpoint given:
   - mean policy: the deterministic evaluation episode (as ``evaluate`` drives it),
   - noisy policy: 32 cars, one episode each from the start line, actions sampled exactly as
     during training (the sim clips them to [-1, 1]).
-For each it prints laps, how episodes ended and the average *applied* throttle (after clipping)
-over all decisions, plus the top speed. Clipping a noisy throttle near +1 lowers its average:
-with mean 0.9 and std 0.6, half the samples land above 1 and get cut to 1, while the low half
-keeps its full spread below.
+For each it prints laps, how many episodes ended by crash or wrong way ("crashed"), the
+average *applied* throttle (after clipping) over all decisions, and the top speed.
+
+Caution: the whole-episode averages are only comparable between drivers that drive the same
+kind of episode. An episode that crashes at 225 m is all acceleration; a full lap includes all
+the braking. To compare a noisy driver with its mean on equal terms, use
+noisy_vs_mean_laps.py, which measures both on the opening straight. Why a noisy throttle drives
+slower than its mean (mostly because the brake is twice as strong as the engine, a little
+because of clipping) is worked out in noisy_throttle.py.
 
 Run: uv run python docs/lessons/scripts/stochastic_vs_mean.py runs/reinforce-<timestamp>-s0 25 latest
 """
