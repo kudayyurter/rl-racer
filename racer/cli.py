@@ -53,6 +53,7 @@ TRAIN_METHODS = {
     "evolution": "racer.algos.evolution",
     "reinforce": "racer.algos.reinforce",
     "a2c": "racer.algos.a2c",
+    "ppo": "racer.algos.ppo",
 }
 
 

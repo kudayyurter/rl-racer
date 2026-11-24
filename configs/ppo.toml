@@ -1,0 +1,21 @@
+# PPO: A2C plus GAE, stored old log-probs and clipped minibatch epochs.
+track = "twisty"           # tracks/<name>.json, or a path
+tracks = "fixed"           # "fixed" = train on `track`; "random" arrives with Task 15
+track_every = 1            # unused until random tracks exist
+n_cars = 16                # cars driving in parallel while collecting
+n_steps = 128              # steps per car per rollout (one update = n_cars * n_steps samples)
+gamma = 0.99               # discount factor
+lam = 0.95                 # GAE lambda: 0 = one-step advantage, 1 = full n-step return - V
+clip = 0.2                 # PPO clip range epsilon
+epochs = 10                # passes over each rollout's data
+minibatch = 256            # samples per gradient step
+lr = 3e-4                  # Adam learning rate
+value_coef = 0.5           # weight of the critic's loss
+entropy_coef = 0.0         # entropy bonus weight (0 = off)
+max_grad_norm = 0.5        # gradient clipping threshold
+normalize_adv = true       # standardize advantages within each minibatch
+hidden = [64, 64]          # actor and critic hidden layer sizes
+# Placeholder: Task 17 fixes the real budget. Counts car-decisions.
+env_steps_budget = 2_000_000
+eval_every = 5             # iterations between deterministic evaluations + checkpoints
+seed = 0
