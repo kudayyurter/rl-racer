@@ -127,3 +127,13 @@ def test_load_policy_unknown_method(tmp_path):
     run.save_checkpoint(make_ckpt(1, method="nonsense"), 1)
     with pytest.raises(ValueError, match="nonsense"):
         load_policy(latest_checkpoint(run.path))
+
+
+def test_read_metrics_skips_partially_written_last_row(tmp_path):
+    # The trainer appends rows while the viewer reads; a read can land mid-row.
+    run = RunDir.create("x", 0, root=tmp_path)
+    run.log(metric_row(1))
+    run.log(metric_row(2))
+    with open(run.path / "metrics.csv", "a") as f:
+        f.write("3,4,5")   # the first three cells of row 3, no newline yet
+    assert run.read_metrics() == [metric_row(1), metric_row(2)]

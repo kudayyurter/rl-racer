@@ -26,7 +26,7 @@ from racer.config import load_env_config
 from racer.render.app import SCREEN_H, SCREEN_W, app_state, run_app
 from racer.render.camera import fit_camera
 from racer.render.car_draw import CAR_COLORS, draw_cars
-from racer.render.overlay import draw_hud, draw_overlay, format_lap_time
+from racer.render.overlay import PANEL_ROW, draw_hud, draw_overlay, format_lap_time
 from racer.render.track_draw import bake_track
 from racer.sim import BatchSim
 from racer.track import load_track
@@ -125,10 +125,16 @@ def run_drive(track_name: str = "twisty", overlay: bool = False, screenshot: str
         baked["track"].draw()
         draw_cars(session.sim.state, cfg.car, camera, CAR_COLORS[:1])
         if app_state.overlay:
-            draw_overlay(session.sim, camera, car=0)
+            # Under the key help, which takes the first row at the top right.
+            draw_overlay(session.sim, camera, car=0, panel_anchor="top-right",
+                         panel_y_offset=PANEL_ROW)
         draw_hud(session.hud_lines())
         draw_hud([HELP], anchor="top-right")
 
+    def teardown() -> None:
+        if "track" in baked:   # setup may not have got that far
+            baked["track"].unload()
+
     run_app(update, draw, f"RL Racer - drive ({track.name})", screenshot=screenshot,
-            frames=frames, overlay=overlay, setup=setup)
+            frames=frames, overlay=overlay, setup=setup, teardown=teardown)
     return 0

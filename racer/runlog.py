@@ -129,13 +129,20 @@ class RunDir:
             writer.writerow(row)
 
     def read_metrics(self) -> list[dict]:
-        """All logged rows as dicts of floats (an empty cell reads as NaN)."""
+        """All logged rows as dicts of floats (an empty cell reads as NaN).
+
+        The viewer reads this file while the trainer appends to it, so the last row can be
+        caught half written. ``DictReader`` fills the cells such a row is missing with None
+        (and files surplus cells under the key None); those rows are skipped; the next read
+        will see them whole.
+        """
         csv_path = self.path / "metrics.csv"
         if not csv_path.exists():
             return []
         with open(csv_path, newline="") as f:
             return [{k: float(v) if v != "" else float("nan") for k, v in r.items()}
-                    for r in csv.DictReader(f)]
+                    for r in csv.DictReader(f)
+                    if None not in r and None not in r.values()]
 
     # ---------------------------------------------------------------- checkpoints and ghosts
 

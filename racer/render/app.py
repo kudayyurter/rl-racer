@@ -31,13 +31,17 @@ app_state = AppState()
 
 def run_app(update: Callable[[float], None], draw: Callable[[], None], title: str,
             screenshot: str | None = None, frames: int = 0, overlay: bool = False,
-            setup: Callable[[], None] | None = None) -> None:
+            setup: Callable[[], None] | None = None,
+            teardown: Callable[[], None] | None = None) -> None:
     """Open the window and run until Esc / window close (or until the screenshot is saved).
 
     ``update(dt)`` advances the viewer by ``dt`` seconds of real time; ``draw()`` draws one
     frame between raylib's begin/end drawing. ``setup()``, if given, runs once right after
     the window opens: GPU work such as baking the track texture needs the window's OpenGL
-    context, so it cannot happen before ``run_app`` is called.
+    context, so it cannot happen before ``run_app`` is called. ``teardown()``, if given, runs
+    once just before the window closes (also after an error), to free what ``setup`` put on
+    the GPU while that context still exists. It may run even if ``setup`` failed part-way,
+    so it should only free what was actually created.
 
     With ``screenshot`` set, ``frames`` frames are rendered (at least one), the last one is
     saved as a PNG at that path, and the window closes. In that mode ``update`` gets exactly
@@ -70,7 +74,11 @@ def run_app(update: Callable[[float], None], draw: Callable[[], None], title: st
             if last:
                 break
     finally:
-        rl.close_window()
+        try:
+            if teardown is not None:
+                teardown()
+        finally:
+            rl.close_window()
 
 
 def _save_screen(path: str) -> None:

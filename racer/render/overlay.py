@@ -42,8 +42,13 @@ def format_lap_time(t: float | None) -> str:
     return f"{minutes}:{rest // 1000:02d}.{rest % 1000:03d}"
 
 
-def draw_overlay(sim: BatchSim, camera, car: int = 0) -> None:
-    """Walls, centerline, the sensor rays of car ``car`` and its progress around the lap."""
+def draw_overlay(sim: BatchSim, camera, car: int = 0, *, panel_anchor: str,
+                 panel_y_offset: float) -> None:
+    """Walls, centerline, the sensor rays of car ``car`` and its progress around the lap.
+
+    The progress readout is a ``draw_hud`` panel at ``panel_anchor`` / ``panel_y_offset``
+    (see ``draw_hud``); each viewer picks a spot its own HUD leaves free.
+    """
     track = sim.track
     left, right, center = _static_lines(track, camera)
     rl.draw_spline_linear(center.ptr, center.count, 1.5, CENTERLINE)
@@ -70,8 +75,7 @@ def draw_overlay(sim: BatchSim, camera, car: int = 0) -> None:
     done = (s[0] - track.cum_len[track.start_index]) % track.length
     text = (f"car {car}  progress {done:.1f} / {track.length:.1f} m "
             f"({100 * done / track.length:.1f}%)  laps {sim.laps[car]}")
-    # Second row from the top right: the first row is where viewers put their key help.
-    draw_hud([text], anchor="top-right", y_offset=PANEL_ROW)
+    draw_hud([text], anchor=panel_anchor, y_offset=panel_y_offset)
 
 
 def draw_hud(lines: list[str], anchor: str = "top-left", y_offset: float = 0.0) -> None:
