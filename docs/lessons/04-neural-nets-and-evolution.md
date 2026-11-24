@@ -272,7 +272,9 @@ The evaluation drives the same genome from the same start line, so you might exp
 `eval_return` to equal `best_fitness` on the same row. Usually the two are very close, but
 not always. Training runs the network through `einsum` in `forward_population`; evaluation runs it
 through `x @ w` in [`EvolutionPolicy.act`](../../racer/algos/evolution.py#L52-L57). The two add
-the same products in a different order, so their actions differ in the last bit (about 2e-16).
+the same products in a different order, so their actions can differ in the last few bits: on
+the start-line observation, the 14 final networks of this lesson's runs give differences from 0
+(three of them) up to 7.2e-16 (`forward_pass.py`'s "max difference", above, run on each).
 Over a 1,350-decision episode that difference can grow: a car that just grazed a wall in one
 episode just misses it in the other. An elite that survives a plateau is evaluated again every
 fifth generation, so counting rows would count the same genome many times.
@@ -281,7 +283,9 @@ per run directory (two evaluation rows of a run are the same genome when their c
 identical weights) and keeps the largest difference per genome. Over the 14 runs in this lesson:
 
 ```
-uv run python docs/lessons/scripts/eval_vs_fitness.py runs/evolution-20261123-200006-s0 ...   # all 14 runs
+uv run python docs/lessons/scripts/eval_vs_fitness.py runs/evolution-20261123-20*
+# the glob selects exactly this lesson's 14 runs: the three main runs (200006-200010) and the
+# experiments' eleven (200843-200848, 201529-201533, 203500, 203501)
 
 14 runs, 131 distinct evaluated genomes (counted per run)
   |training - evaluation| <= 0.005: 120

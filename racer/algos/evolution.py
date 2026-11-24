@@ -51,12 +51,18 @@ class EvolutionPolicy:
 
     def act(self, obs: np.ndarray) -> np.ndarray:
         """Deterministic actions for (N, D) observations: the network output, in [-1, 1]."""
+        # Same network as training's forward_population, but computed with `x @ w` where training
+        # uses einsum. The two sum the same products in a different order, so the actions can
+        # differ in the last few bits, and over a long episode an evaluation can end differently
+        # from the training episode of the same genome. Left as is on purpose: lesson 04
+        # ("One generation, line by line", step 3) explains and measures it.
         x = np.asarray(obs, dtype=float)
         for w, b in self._layers:
             x = np.tanh(x @ w[0] + b[0])
         return x
 
     def activations(self, obs: np.ndarray) -> list[np.ndarray]:
+        """Every layer's output, input first, for the viewer's network panel (`x @ w`, as act)."""
         x = np.asarray(obs, dtype=float)
         acts = [x]
         for w, b in self._layers:
