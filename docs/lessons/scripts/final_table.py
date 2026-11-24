@@ -124,7 +124,7 @@ def at_table(paths: list[Path]) -> str:
     for x_key, points, unit in (("steps", STEP_POINTS, "env steps"), ("time", TIME_POINTS, "s")):
         out.append(f"best lap so far, median over seeds that had lapped (lapped/seeds), at {unit}:")
         out.append(f"{'group':<22}" + "".join(f"{p:>16,}" for p in points))
-        for (method, track, _), curves in groups.items():
+        for (method, track, *_), curves in groups.items():
             cells = []
             for p in points:
                 vals = [v for v in (best_at(c, x_key, p) for c in curves) if np.isfinite(v)]

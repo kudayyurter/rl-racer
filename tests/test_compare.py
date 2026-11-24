@@ -12,11 +12,13 @@ from racer.runlog import RunDir
 NAN = float("nan")
 
 
-def make_run(root, method, seed, rows, track="twisty", env=None):
+def make_run(root, method, seed, rows, track="twisty", env=None, train=None):
     """Fake run dir. rows: (env_steps, wall_s, eval_progress, eval_laps, best_lap) tuples;
-    eval_progress None means a training-only row (NaN eval columns)."""
+    eval_progress None means a training-only row (NaN eval columns). ``train`` adds method
+    settings to the train config, which (like a real config.json) also records the seed."""
     run = RunDir.create(method, seed, root=root)
-    run.save_config({"method": method, "seed": seed, "train": {"track": track},
+    run.save_config({"method": method, "seed": seed,
+                     "train": {"track": track, "seed": seed, **(train or {})},
                      "env": env if env is not None else {"dt": 0.0167}})
     for i, (steps, wall, prog, laps, best) in enumerate(rows, start=1):
         row = dict(iteration=i, env_steps=steps, wall_time_s=wall, train_return_mean=0.0,
@@ -68,6 +70,20 @@ def test_groups_split_by_track_and_env_hash(tmp_path):
     # Hash suffix only where method+track collide.
     assert sum("#" in lab for lab in labels) == 2
     assert "ppo · twisty" in labels and "a2c · oval" in labels
+
+
+def test_groups_split_by_train_config_but_not_by_seed(tmp_path):
+    # Seeds 0 and 1 of the same settings are one group; a different mutation_std (or
+    # population, budget, ...) on the same track and env is a different experiment.
+    same = [make_run(tmp_path, "evolution", s, [(1, 1, 1.0, 0, NAN)], train={"mutation_std": 0.1})
+            for s in (0, 1)]
+    other = make_run(tmp_path, "evolution", 2, [(1, 1, 1.0, 0, NAN)], train={"mutation_std": 0.5})
+    rows = summarize([*same, other])
+    assert sorted(r["seeds"] for r in rows) == [1, 2]
+    labels = [r["label"] for r in rows]
+    assert len(set(labels)) == 2
+    # Same env, so the suffix that tells them apart is the train-config hash.
+    assert all("train#" in lab for lab in labels)
 
 
 def test_run_with_no_eval_rows_counts_as_failed_seed(tmp_path):

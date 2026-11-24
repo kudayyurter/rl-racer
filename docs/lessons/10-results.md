@@ -49,9 +49,9 @@ uv run racer compare runs/evolution-20261123-200006-s0 runs/evolution-20261123-2
 uv run python docs/lessons/scripts/final_table.py runs/evolution-20261123-200006-s0 ...   # the same 15
 ```
 
-(Name the runs: `runs/ppo-*` would also pick up the fast-lap and random-track PPO runs, and
-`compare` groups the random-track runs with these, because they share the method, the
-evaluation track and the env config.)
+(Name the runs: `runs/ppo-*` would also pick up the fast-lap, random-track and experiment PPO
+runs. `compare` would keep them apart, since it groups by method, track, env config and the
+method's own settings with the seed left out, but the plot would then hold 20 PPO groups.)
 
 `racer compare`'s table (appended to [`results/summary.md`](../../results/summary.md)):
 

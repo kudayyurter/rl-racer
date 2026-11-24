@@ -5,8 +5,10 @@ numbers must come from one place that groups runs correctly. ``racer compare`` r
 directories, groups them, and writes two plots plus a markdown summary table.
 
 Grouping. Runs are only comparable if they trained the same way on the same problem, so a
-group is ``(method, track, env-config hash)``: seeds of one method on one track with an
-identical environment config. Change a reward weight and the runs land in a separate group.
+group is ``(method, track, env-config hash, train-config hash)``: seeds of one method on one
+track with an identical environment config and identical method settings. The train hash leaves
+out the seed, the one setting that is meant to differ between the runs of a group. Change a
+reward weight, a mutation std or the budget and the runs land in a separate group.
 
 Eval points. ``metrics.csv`` has a row per logging step, but only some rows carry an
 evaluation (the others have NaN eval columns). Only rows with a finite ``eval_progress_m``
@@ -48,6 +50,16 @@ def env_hash(env_config: dict) -> str:
     return hashlib.sha1(json.dumps(env_config, sort_keys=True).encode()).hexdigest()[:6]
 
 
+# Train-config keys that differ between the seeds of one experiment and so must not split a group.
+PER_RUN_TRAIN_KEYS = ("seed",)
+
+
+def train_hash(train_config: dict) -> str:
+    """Fingerprint of a method's settings, ignoring the per-run keys (the seed)."""
+    shared = {k: v for k, v in train_config.items() if k not in PER_RUN_TRAIN_KEYS}
+    return env_hash(shared)   # same recipe: sorted JSON, short sha1
+
+
 def load_run(path: str | Path) -> dict:
     """One run's eval-point curves plus the identifying fields used for grouping.
 
@@ -67,26 +79,40 @@ def load_run(path: str | Path) -> dict:
     return {
         "path": path, "method": config["method"], "seed": config["seed"],
         "track": config["train"]["track"], "env_hash": env_hash(config["env"]),
+        "train_hash": train_hash(config["train"]),
         "steps": col("env_steps"), "time": col("wall_time_s"),
         "progress": col("eval_progress_m"), "laps": col("eval_laps"), "best_lap": running,
     }
 
 
 def group_runs(curves: list[dict]) -> dict[tuple, list[dict]]:
-    """Group loaded runs by (method, track, env hash), in a stable order."""
+    """Group loaded runs by (method, track, env hash, train hash), in a stable order."""
+    def key(c):
+        return (c["method"], c["track"], c["env_hash"], c["train_hash"])
+
     groups: dict[tuple, list[dict]] = {}
-    for c in sorted(curves, key=lambda c: (c["method"], c["track"], c["env_hash"], c["seed"])):
-        groups.setdefault((c["method"], c["track"], c["env_hash"]), []).append(c)
+    for c in sorted(curves, key=lambda c: (*key(c), c["seed"])):
+        groups.setdefault(key(c), []).append(c)
     return groups
 
 
 def group_labels(keys) -> dict[tuple, str]:
-    """Readable names: "ppo · twisty", plus "#hash" only where method and track collide."""
+    """Readable names: "ppo · twisty", plus hashes only where method and track collide.
+
+    Among the groups that share a method and track, "#<env hash>" is added if their env configs
+    differ and "train#<train hash>" if their method settings differ, so each label names what
+    actually tells that group apart.
+    """
     keys = list(keys)
     labels = {}
-    for method, track, h in keys:
-        clash = sum(1 for m, t, _ in keys if (m, t) == (method, track)) > 1
-        labels[(method, track, h)] = f"{method} · {track}" + (f" #{h}" if clash else "")
+    for method, track, eh, th in keys:
+        clash = [k for k in keys if k[:2] == (method, track)]
+        label = f"{method} · {track}"
+        if len({k[2] for k in clash}) > 1:
+            label += f" #{eh}"
+        if len({k[3] for k in clash}) > 1:
+            label += f" train#{th}"
+        labels[(method, track, eh, th)] = label
     return labels
 
 
@@ -140,6 +166,7 @@ def summarize(runs: list) -> list[dict]:
         firsts = [_first_lap(c) for c in ok]
         out.append({
             "label": labels[key], "method": key[0], "track": key[1], "env_hash": key[2],
+            "train_hash": key[3],
             "seeds": len(curves), "success": f"{len(ok)}/{len(curves)}",
             "best_lap_median": _median(bests),
             "best_lap_min": min(bests) if bests else float("nan"),

@@ -255,7 +255,8 @@ uv run python docs/lessons/scripts/eval_history.py runs/ppo-20261123-225701-s0 .
 uv run python docs/lessons/scripts/lap_counts.py runs/ppo-20261123-225701-s0 ...
 ```
 
-`racer compare` groups runs by method, track and a hash of the env config, so the two rewards
+`racer compare` groups runs by method, track, a hash of the env config and a hash of the
+method's settings (seed left out). The method settings are the same here, so the two rewards
 are two groups per method: **`#9a42be` is `env.toml`, `#a0eb7a` is `env_fastlap.toml`** (solid
 and dashed lines in the plots). Its table (appended to [`results/summary.md`](../../results/summary.md)):
 
