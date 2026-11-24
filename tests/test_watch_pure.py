@@ -131,7 +131,8 @@ def test_waiting_until_first_checkpoint(tmp_path):
     run.save_config({"method": "evolution", "seed": 0, "train": {"track": "oval"},
                      "env": {"max_episode_s": 1.0}})
     session = WatchSession(run.path, reload_s=1.0, n_ghosts=3)
-    assert session.policy is None and session.status_lines()   # waiting, but no crash
+    assert session.policy is None                               # waiting, but no crash
+    assert session.status_lines()[0].startswith("waiting for first checkpoint")
     session.update(0.1)
     _save_policy(run, 1)
     session.update(1.0)   # the next poll loads it straight away: nothing is driving yet
