@@ -15,7 +15,10 @@ entropy_coef = 0.0         # entropy bonus weight (0 = off)
 max_grad_norm = 0.5        # gradient clipping threshold
 normalize_adv = true       # standardize advantages within each minibatch
 hidden = [64, 64]          # actor and critic hidden layer sizes
-# Placeholder: Task 17 fixes the real budget. Counts car-decisions.
-env_steps_budget = 2_000_000
+# Equal budget for every method on twisty (spec). Counts car-decisions.
+# Measured 2026-11-23 on twisty (Ryzen 7 7700X), env_steps / wall_time_s over ~60 s:
+#   evolution 6.9k/s, reinforce 12.6k/s, a2c 8.6k/s, ppo 5.3k/s, sb3 1.4k/s (slowest).
+# 1.2M steps = ~860 s for sb3 (the slowest), i.e. about 15 min. See configs/budgets.md.
+env_steps_budget = 1_200_000
 eval_every = 5             # iterations between deterministic evaluations + checkpoints
 seed = 0

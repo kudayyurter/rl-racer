@@ -15,7 +15,10 @@ max_grad_norm = 0.5
 learning_rate = 3e-4       # = ppo lr
 normalize_advantage = true # = ppo normalize_adv
 net_arch = [64, 64]        # = ppo hidden, for both actor and critic
-# Placeholder: Task 17 fixes the real budget. Counts car-decisions.
-env_steps_budget = 2_000_000
+# Equal budget for every method on twisty (spec). Counts car-decisions.
+# Measured 2026-11-23 on twisty (Ryzen 7 7700X), env_steps / wall_time_s over ~60 s:
+#   evolution 6.9k/s, reinforce 12.6k/s, a2c 8.6k/s, ppo 5.3k/s, sb3 1.4k/s (slowest).
+# 1.2M steps = ~860 s for sb3 (the slowest), i.e. about 15 min. See configs/budgets.md.
+env_steps_budget = 1_200_000
 eval_every_steps = 10_240  # = 5 PPO iterations of 16 * 128 = 2,048 steps each
 seed = 0

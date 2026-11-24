@@ -16,7 +16,9 @@ entropy_coef = 0.0         # entropy bonus weight (0 = off)
 max_grad_norm = 0.5        # gradient clipping threshold
 normalize_adv = true       # standardize advantages within each minibatch
 hidden = [64, 64]          # actor and critic hidden layer sizes
-# Placeholder: Task 17 fixes the real budget (random tracks likely need more). Counts car-decisions.
-env_steps_budget = 2_000_000
+# Random-track PPO has its own budget. Counts car-decisions.
+# Measured 2026-11-23 (Ryzen 7 7700X): 3.0k/s, slower than fixed-track ppo (5.3k/s) because every
+# eval also drives 10 held-out tracks. 2.5M steps = ~830 s, about 15 min. See configs/budgets.md.
+env_steps_budget = 2_500_000
 eval_every = 5             # iterations between deterministic evaluations + checkpoints
 seed = 0

@@ -1,0 +1,35 @@
+# Fast-lap variant of env.toml: same car and track physics, but the reward pushes lap time.
+# Differences from env.toml: time_cost (5x) and max_laps (3); each is marked "CHANGED" below.
+# Default racing-environment configuration. Every field of EnvConfig and
+# CarParams is listed so this file doubles as documentation.
+# Units: meters, seconds, radians unless noted.
+
+dt = 0.016666666666666666  # physics step, s (1/60); independent of rendering
+action_repeat = 4          # physics steps per agent decision
+n_rays = 9                 # number of distance-sensor rays
+ray_spread_deg = 180.0     # angle covered by the rays, degrees
+ray_range = 60.0           # max sensor distance, m
+progress_scale = 0.1       # reward per meter of track progress
+crash_penalty = 10.0       # reward lost on leaving the track
+# CHANGED (was 0.01): every second costs more than the extra progress a cautious line earns,
+# so the agent stops creeping around the track and starts chasing lap time.
+time_cost = 0.05           # reward lost per agent step (encourages speed)
+lap_bonus = 10.0           # reward for completing a lap
+wrong_way_m = 15.0         # backwards progress (m) that ends the episode
+max_episode_s = 90.0       # episode time limit, s
+# CHANGED (was 2): a third lap gives more data on a policy's best line and makes a rushed lap
+# one that still has to be repeated, which rewards consistency.
+max_laps = 3               # laps that end the episode successfully
+random_start = false       # start at a random point on the track
+
+[car]
+length = 4.5          # body length, m
+width = 2.0           # body width, m
+wheelbase = 2.7       # distance between axles, m
+max_steer = 0.6       # maximum front-wheel angle, rad
+steer_rate = 3.0      # how fast the wheel angle can change, rad/s
+max_accel = 8.0       # full-throttle acceleration, m/s^2
+max_brake = 16.0      # full-brake deceleration, m/s^2
+drag = 0.0015         # quadratic air drag coefficient, 1/m
+max_speed = 50.0      # hard speed cap, m/s
+max_lat_accel = 12.0  # grip limit: sideways acceleration before sliding, m/s^2

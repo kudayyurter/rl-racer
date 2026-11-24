@@ -66,3 +66,11 @@ def test_shipped_configs_load():
     from racer.config import load_env_config, load_method_config
     load_env_config("configs/env.toml")
     load_method_config(EvolutionConfig, "configs/evolution.toml")
+
+
+def test_env_fastlap_differs_from_env_only_in_time_cost_and_max_laps():
+    base = dataclasses.asdict(load_env_config("configs/env.toml"))
+    fast = dataclasses.asdict(load_env_config("configs/env_fastlap.toml"))
+    changed = {k for k in base if base[k] != fast[k]}
+    assert changed == {"time_cost", "max_laps"}
+    assert fast["time_cost"] == pytest.approx(5 * base["time_cost"]) and fast["max_laps"] == 3
