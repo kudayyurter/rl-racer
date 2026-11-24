@@ -81,3 +81,8 @@ def test_env_fastlap_laps_finish_inside_time_limit():
     # driver lapping in 60 s or less must finish max_laps before the time limit cuts it off.
     fast = load_env_config("configs/env_fastlap.toml")
     assert fast.max_laps * 60.0 <= fast.max_episode_s
+
+
+def test_dotted_override_under_a_scalar_is_a_config_error():
+    with pytest.raises(ConfigError, match="car"):
+        parse_overrides(["car=1", "car.width=3"])

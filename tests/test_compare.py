@@ -140,3 +140,17 @@ def test_summary_table_tells_clashing_groups_apart(tmp_path):
     lines = [ln for ln in text.splitlines() if ln.startswith("| ppo")]
     assert len(lines) == 2 and lines[0].split("|")[1] != lines[1].split("|")[1]
     assert all("#" in ln.split("|")[1] for ln in lines)
+
+
+def test_aggregate_with_no_eval_rows_is_empty(tmp_path):
+    curves = [load_run(make_run(tmp_path, "evolution", 0, [(1, 1, None, 0, NAN)]))]
+    x, med, lo, hi, n = aggregate(curves, "steps", "progress")
+    assert len(x) == len(med) == len(n) == 0
+
+
+def test_cli_compare_on_run_stopped_before_first_eval(tmp_path):
+    # A run killed before its first eval row must not crash the plots.
+    run = make_run(tmp_path / "runs", "evolution", 0, [(1, 1, None, 0, NAN)])
+    out = tmp_path / "results"
+    assert main(["compare", str(run), "--out", str(out), "--name", "t"]) == 0
+    assert "| evolution · twisty | 1 | 0/1 |" in (out / "summary.md").read_text()

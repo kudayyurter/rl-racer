@@ -162,6 +162,9 @@ def parse_overrides(pairs: list[str]) -> dict:
         *parents, leaf = key.split(".")
         for part in parents:
             node = node.setdefault(part, {})
+            if not isinstance(node, dict):
+                raise ConfigError(f"override {pair!r}: {part!r} was already set to a value, "
+                                  "not a table")
         node[leaf] = value
     return out
 

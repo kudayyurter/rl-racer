@@ -32,6 +32,12 @@ def _missing_track(name: str) -> str | None:
         load_track(name)
     except FileNotFoundError as e:
         return f"no track {name!r}: {e.filename} does not exist"
+    except OSError as e:          # e.g. a directory instead of a file
+        return f"cannot read track {name!r}: {e.strerror}"
+    except ValueError as e:       # includes json.JSONDecodeError
+        return f"track {name!r} is not valid track JSON: {e}"
+    except KeyError as e:
+        return f"track {name!r} is missing the {e.args[0]!r} field"
     return None
 
 

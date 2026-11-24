@@ -180,3 +180,30 @@ def test_checkpoint_for_other_observation_size_is_refused_clearly(tmp_path):
     session = WatchSession(run.path, reload_s=0.05, n_ghosts=3)
     assert session.policy is None
     assert "checkpoint expects 12 observation inputs, this env gives 8" in session.error
+
+
+def _run_with_ghost(tmp_path) -> RunDir:
+    run = _run_with_checkpoint(tmp_path, {"max_episode_s": 1.0})
+    poses = np.zeros((3, 3))
+    run.save_ghost(1, np.array([0.0, 0.5, 1.0]), poses, lap_time=1.0)
+    return run
+
+
+def test_ghosts_replay_on_the_training_track(tmp_path):
+    session = WatchSession(_run_with_ghost(tmp_path).path, reload_s=1.0, n_ghosts=3)
+    assert len(session.ghosts) == 1 and not session.ghosts_hidden
+
+
+def test_ghosts_hidden_when_watching_on_another_track(tmp_path):
+    # Ghost poses are recorded on the training track (oval); on twisty they would cross grass.
+    session = WatchSession(_run_with_ghost(tmp_path).path, "twisty", reload_s=1.0, n_ghosts=3)
+    assert session.ghosts == [] and session.ghosts_hidden
+    assert any(line.startswith("ghosts\thidden") for line in session.status_lines())
+
+
+def test_unloadable_training_track_is_an_error_not_a_crash(tmp_path):
+    run = RunDir.create("evolution", 0, root=tmp_path)
+    run.save_config({"method": "evolution", "seed": 0,
+                     "train": {"track": str(tmp_path / "gone.json")}, "env": {}})
+    session = WatchSession(run.path, reload_s=1.0, n_ghosts=3)
+    assert session.sim is None and "cannot load track" in session.error

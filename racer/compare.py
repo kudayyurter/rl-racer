@@ -123,7 +123,11 @@ def aggregate(curves: list[dict], x_key: str, y_key: str):
     is absent outside its own x range; NaN y values (no lap yet) are left out too. Where no
     seed contributes the result is NaN.
     """
-    x = np.unique(np.concatenate([c[x_key] for c in curves if len(c[x_key])]))
+    xs = [c[x_key] for c in curves if len(c[x_key])]
+    if not xs:   # no seed has an eval row yet (e.g. a run stopped before its first eval)
+        empty = np.array([], dtype=float)
+        return empty, empty, empty, empty, np.array([], dtype=int)
+    x = np.unique(np.concatenate(xs))
     stack = np.full((len(curves), len(x)), np.nan)
     for i, c in enumerate(curves):
         if not len(c[x_key]):

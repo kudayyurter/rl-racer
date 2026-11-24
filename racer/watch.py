@@ -73,6 +73,14 @@ VALUE_X = 120                                    # status values line up at this
 HELP = "D overlay   Esc quit"
 
 
+def _track_name_or_none(name: str) -> str | None:
+    """The display name stored in a track file, or None if it does not load."""
+    try:
+        return load_track(name).name
+    except (OSError, ValueError, KeyError):
+        return None
+
+
 class WatchSession:
     """The viewer's logic, with no drawing: polling the run, driving the car, hot reload.
 
@@ -102,6 +110,7 @@ class WatchSession:
 
         self.rows: list[dict] = []
         self.ghosts: list = []                # the newest n_ghosts, oldest first
+        self.ghosts_hidden = False            # True when watching on a track other than training's
         self._ghost_files: list[str] = []
 
         self.accumulator = 0.0     # real time not yet simulated, seconds
@@ -120,7 +129,8 @@ class WatchSession:
             self.rows = self.run.read_metrics()
             files = sorted(p.name for p in (self.run.path / "ghosts").glob("ghost_*.npz"))
             if files != self._ghost_files:   # only re-load ghosts when there are new ones
-                self.ghosts = self.run.ghosts()[-self.n_ghosts:] if self.n_ghosts else []
+                show = self.n_ghosts and not self.ghosts_hidden
+                self.ghosts = self.run.ghosts()[-self.n_ghosts:] if show else []
                 self._ghost_files = files
         except (OSError, ValueError):
             pass   # caught the trainer mid-write; the next poll will see the finished file
@@ -143,7 +153,16 @@ class WatchSession:
             self.error = "config.json names no track: pass --track"
             return
         self.method = config.get("method")
-        self.track = load_track(name)
+        try:
+            self.track = load_track(name)
+        except (OSError, ValueError, KeyError) as e:
+            self.error = f"cannot load track {name!r}: {e}"
+            return
+        # Ghosts are world poses recorded on the training track; replayed on another track
+        # they would drive across the grass, so they are hidden there.
+        train_name = config.get("train", {}).get("track")
+        self.ghosts_hidden = train_name is not None and name != train_name and \
+            self.track.name != _track_name_or_none(train_name)
         self.cfg = from_dict(EnvConfig, config.get("env", {}))
         self.sim = BatchSim(self.track, self.cfg, n_cars=1, auto_reset=False)
         self.obs = self.sim.reset()
@@ -238,7 +257,9 @@ class WatchSession:
         best = self._best_eval_lap()
         if best is not None:
             lines.append(f"best lap\t{format_lap_time(best[0])}  eval, iteration {best[1]}")
-        if self.ghosts:
+        if self.ghosts_hidden:
+            lines.append("ghosts\thidden: recorded on the training track")
+        elif self.ghosts:
             first, last = self.ghosts[0].iteration, self.ghosts[-1].iteration
             which = f"iteration {first}" if first == last else f"iterations {first}-{last}"
             lines.append(f"ghosts\t{len(self.ghosts)}, {which}")

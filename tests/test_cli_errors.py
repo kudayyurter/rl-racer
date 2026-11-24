@@ -42,3 +42,14 @@ def test_watch_with_unknown_track_prints_one_line(tmp_path, capsys):
     err = capsys.readouterr().err
     assert err.startswith("racer watch: ") and "ovl" in err
     assert err.count("\n") == 1
+
+
+def test_train_with_directory_or_bad_json_track_prints_one_line(tmp_path, capsys):
+    before = _run_dirs()
+    bad = tmp_path / "bad.json"
+    bad.write_text('{"name": "bad", "points": [[0, 0], [1, 0], [1, 1]]}')   # no width
+    for track in (f"{tmp_path}/", str(bad)):
+        assert main(["train", "ppo", "--set", f"track={track}"]) == 2
+        err = capsys.readouterr().err
+        assert err.startswith("racer train: ") and err.count("\n") == 1
+    assert _run_dirs() == before
