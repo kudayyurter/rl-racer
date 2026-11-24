@@ -1,0 +1,14 @@
+# A2C: REINFORCE plus a critic baseline, n-step returns and truncation bootstrapping.
+track = "twisty"           # tracks/<name>.json, or a path
+n_cars = 16                # cars driving in parallel while collecting
+n_steps = 32               # steps per car per rollout (one update = n_cars * n_steps samples)
+gamma = 0.99               # discount factor
+lr = 7e-4                  # Adam learning rate
+value_coef = 0.5           # weight of the critic's loss
+entropy_coef = 0.0         # entropy bonus weight (0 = off)
+max_grad_norm = 0.5        # gradient clipping threshold
+hidden = [64, 64]          # actor and critic hidden layer sizes
+# Placeholder: Task 17 fixes the real budget. Counts car-decisions.
+env_steps_budget = 2_000_000
+eval_every = 10            # iterations between deterministic evaluations + checkpoints
+seed = 0

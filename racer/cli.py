@@ -52,6 +52,7 @@ def _watch(args: argparse.Namespace) -> int:
 TRAIN_METHODS = {
     "evolution": "racer.algos.evolution",
     "reinforce": "racer.algos.reinforce",
+    "a2c": "racer.algos.a2c",
 }
 
 
