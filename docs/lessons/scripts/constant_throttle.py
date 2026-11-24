@@ -8,8 +8,9 @@ the observation only, like a learned policy). Two versions:
 
 For each it prints how the episode ended, the speed when the car reaches the end of the first
 straight (x = 100 m, where the first turn begins), the top speed, and the car's sideways offset
-from the centerline at the end. It also prints the oval's corner radius and the fastest speed
-the grip limit allows at that radius, v = sqrt(max_lat_accel * R).
+from the centerline at the end. It also prints the oval's nominal corner radius (the 50 m
+circle its end-turn control points sit on; oval_radius.py measures the spline's real radius,
+38.9 to 57.5 m) and the fastest speed the grip limit allows there, v = sqrt(max_lat_accel * R).
 
 Run: uv run python docs/lessons/scripts/constant_throttle.py   (a few seconds)
 """
@@ -28,6 +29,7 @@ from racer.track import load_track  # noqa: E402
 from tests.helpers import ScriptedOvalPolicy  # noqa: E402
 
 TURN_START_X = 100.0   # the oval's straights end at x = +-100 m; the end turns have radius 50 m
+NOMINAL_RADIUS_M = 50.0   # the circle the end-turn control points sit on (tracks/oval.json)
 
 
 class ConstantThrottle(ScriptedOvalPolicy):
@@ -66,9 +68,9 @@ def drive(policy, track, cfg) -> dict:
 def main() -> None:
     track = load_track("oval")
     cfg = EnvConfig()
-    radius = 50.0
+    radius = NOMINAL_RADIUS_M
     print(f"oval: width {track.width} m (walls {track.width / 2} m either side), "
-          f"corner radius {radius} m")
+          f"nominal corner radius {radius} m")
     print(f"grip limit {cfg.car.max_lat_accel} m/s^2 -> fastest speed round a {radius} m corner: "
           f"sqrt({cfg.car.max_lat_accel} * {radius}) = {math.sqrt(cfg.car.max_lat_accel * radius):.1f} m/s")
     for label, policy in (("coast above 20 m/s", ScriptedOvalPolicy(cfg, track)),

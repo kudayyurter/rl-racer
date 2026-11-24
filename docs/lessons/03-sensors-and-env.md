@@ -230,7 +230,7 @@ stepped from Python, and SB3 ran at 1.4k env steps/s. [`BatchSimVecEnv`](../../r
 replaced that with one `BatchSim` of 16 cars behind SB3's `VecEnv` interface, the same batched
 simulator our own PPO uses, and SB3 went to 5.0k steps/s (both figures from
 [`configs/budgets.md`](../../configs/budgets.md), measured 2026-11-23). The algorithm did not
-change; the 3.6× was harness overhead. Without that fix, SB3 would have needed about 3.6× the time
+change; the 3.6× was harness overhead (Experiment 1 shows where it comes from). Without that fix, SB3 would have needed about 3.6× the time
 for the same step budget, and the speed comparison in lesson 10 would have measured plumbing.
 
 ## What to look for in the viewer
@@ -279,8 +279,11 @@ background):
 ```
 
 - One car manages about 1.6k car-steps/s; 16 cars about 12.9k, 8× more for the same Python
-  overhead. That is the gap between SB3's old 1.4k steps/s (16 one-car sims) and the batched
-  sim's throughput.
+  overhead. This explains SB3's old 1.4k steps/s: 16 one-car sims stepped one after another
+  together run at about the one-car rate (each still pays the full per-call overhead), so the
+  simulator alone capped SB3 near 1.6k. With one batched 16-car sim the simulator could deliver
+  about 12.9k, but SB3 reached 5.0k rather than 12.9k because its wall time also includes running
+  the networks and the gradient updates.
 - Past 64 cars the gain flattens (20k at 64, 21-28k at 256): the numpy arithmetic itself now
   dominates, and it grows with N.
 - The 256-car figure moved from 28.1k to 24.0k between two back-to-back runs, a 15% difference.

@@ -140,6 +140,16 @@ corner is 50 m. The car runs wide and hits the outer wall 11.75 s after the star
 the centerline (the wall is 7 m out; the car's corner reaches it first). The same steering with a
 throttle that coasts above 20 m/s laps cleanly. Experiment 2 reproduces both.
 
+A note on "50 m": that is the circle the control points sit on. The spline through them is not a
+perfect circle; its radius in the body of the turns ranges from 38.9 to 57.5 m, and it is tighter
+than 45 m for only 58 m of the 714 m lap. At the tightest point the formula gives
+`sqrt(12 × 38.9) = 21.6 m/s`, yet a car holding 23.8 m/s gets round: its own path never curves
+tighter than 47.2 m (what the grip allows at that speed), and it absorbs the difference by
+drifting up to 1.49 m toward the outside of the turn, well inside the 7 m to the wall. A short
+tight spot costs road width, not a crash. (All from
+[`docs/lessons/scripts/oval_radius.py`](scripts/oval_radius.py).) So 50 m is the right radius for
+the whole turn, and the speeds below use it.
+
 The fix is cheap if done early: braking from 31 m/s to 24.5 m/s takes 10.6 m (measured). The
 difficulty is entirely *when*. For a learner this is hard in a specific way:
 
@@ -213,8 +223,10 @@ twisty max_lat_accel=  30  best lap 53.47 s at target 22 m/s (1 laps)
 ```
 
 - **Oval:** the highest surviving target is 24 m/s at grip 12 and 40 m/s at grip 30; the formula
-  gives 24.5 and `sqrt(30 × 50) = 38.7` m/s. (The car can beat 38.7 slightly by using the 14 m
-  road width for a wider line.) Best lap drops from 30.28 s to 18.65 s, 38% faster. Below 24 m/s
+  gives 24.5 and `sqrt(30 × 50) = 38.7` m/s. The 40 m/s car beats 38.7 by using the road
+  width: [`oval_radius.py`](scripts/oval_radius.py) shows its tightest path radius is 51.8 m,
+  wider than the 50 m circle, because it drifts up to 5.48 m toward the outer wall (7 m out): it
+  gets round with little road to spare. Best lap drops from 30.28 s to 18.65 s, 38% faster. Below 24 m/s
   the grip limit never binds, so both settings give the same lap times.
 - **Twisty:** a constant-speed driver is slow. At grip 12 only 14 m/s survives (82.52 s; at 10
   and 12 m/s the lap takes longer than the 90 s limit), because the whole lap has to be driven at
@@ -249,7 +261,7 @@ uv run python docs/lessons/scripts/constant_throttle.py
 Output of `docs/lessons/scripts/constant_throttle.py`, run 2026-11-23:
 
 ```
-oval: width 14.0 m (walls 7.0 m either side), corner radius 50.0 m
+oval: width 14.0 m (walls 7.0 m either side), nominal corner radius 50.0 m
 grip limit 12.0 m/s^2 -> fastest speed round a 50.0 m corner: sqrt(12.0 * 50.0) = 24.5 m/s
 
 coast above 20 m/s:

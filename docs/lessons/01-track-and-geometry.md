@@ -117,10 +117,20 @@ pass close to each other. Picture a hairpin: two straights side by side.
    near straight  ------------------------------->   centerline at y = 0   car driving here
 ```
 
-A point at `y = 8` is 8 m from its own centerline but only 6 m from the far one. A global search
-would say the car is on the far straight, which is 140 m further along the lap, and pay that as
-progress in one step: a reward of about +14 out of nowhere. One such jump can teach a policy to
-hunt for it. [`test_projection_search_is_windowed`](../../tests/test_track.py#L106-L123) builds
+Take the point `y = 8`: past the near road's left wall (y = 6) and across the grass, on the far
+road's edge. It is 8 m from the near centerline but only 6 m from the far one. A global search
+would say the car is on the far straight, 100 to 180 m away along the lap depending on where
+along the straight it is. The simulator turns a change in `s` into progress with a wrap rule
+([sim.py#L200-L201](../../racer/sim.py#L200-L201)): any step is read as the shorter way round the
+loop, so that crossing `s = 0` is a small step forward. On this 283.8 m track half a lap is
+141.9 m, which gives two different failures:
+
+- a jump of less than half a lap is paid as progress: +10 reward in one step at `x = 80`,
+  more than a lap bonus, for nothing. A policy can learn to hunt for that;
+- a jump of more than half a lap reads as driving backwards: −10 reward, and the episode
+  ends by the wrong-way rule (more than 15 m backwards), although the car did nothing wrong.
+
+[`test_projection_search_is_windowed`](../../tests/test_track.py#L106-L123) builds
 exactly this track, checks that the windowed search stays on the near straight, and also checks
 that a global search really does jump (so the test cannot pass by accident).
 [`test_projection_does_not_jump_hairpin`](../../tests/test_track.py#L89-L103) drives a car down
@@ -133,11 +143,12 @@ per physics step, and the window reaches 10 samples (about 20 m) either way
 When does the jump actually happen? A car `d` meters left of its own centerline, with the other
 section's centerline `gap` meters away, is closer to the other one when `d > gap / 2`. A car on
 the asphalt has `d < width / 2`, so a global search only fails when sections come closer than
-one road width, or for a point off the asphalt, like the `y = 8` point in the grass. The shipped
+one road width, or for a point off its own road, like the `y = 8` point on the far road's edge.
+The shipped
 and generated tracks keep sections further apart than that, so on them a car on the road is
 always nearest its own stretch. The window turns that from "true for these track files" into "true
 for any track file", and it is also far cheaper: 21 candidates instead of 563 on twisty, measured
-at 231 µs against 5,287 µs per call for 256 cars (Experiment 3).
+at 254 µs against 5,063 µs per call for 256 cars (Experiment 3).
 
 ### A caveat: progress off the centerline
 
@@ -348,12 +359,16 @@ with 5 rays to see whether that matters.
 **Change.** Nothing in the simulator. The script
 [`docs/lessons/scripts/hairpin_jump.py`](scripts/hairpin_jump.py) builds the hairpin from the
 tests and projects points along the near straight twice: with the window (as `BatchSim` does)
-and with `half = M // 2`, which makes every sample a candidate. It also times both searches for
+and with `half = M // 2`, which makes every sample a candidate. It then passes the global answer
+through the simulator's own progress rule (the wrapped `ds` of
+[sim.py#L200-L201](../../racer/sim.py#L200-L201)), as if the car had been at the windowed `s` one
+substep earlier, and says what the simulator would do with it. It also times both searches for
 256 cars on twisty.
 
-**Predict.** For a point on the centerline (`y = 0`), near the left wall (`y = 5`) and in the
-grass gap (`y = 8`): where does the global search jump, and how much reward would that jump
-pay at `progress_scale = 0.1`? How much slower is searching 563 samples instead of 21?
+**Predict.** For a point on the centerline (`y = 0`), near the left wall (`y = 5`) and on the
+far road's edge (`y = 8`): where does the global search jump? After the simulator wraps the step
+to the shorter way round a 283.8 m loop, which jumps become a reward and which become a
+wrong-way ending? How much slower is searching 563 samples instead of 21?
 
 **Run.**
 
@@ -363,32 +378,43 @@ uv run python docs/lessons/scripts/hairpin_jump.py
 
 <details><summary>What we got</summary>
 
-Output of `docs/lessons/scripts/hairpin_jump.py`, run 2026-11-23:
+Output of `docs/lessons/scripts/hairpin_jump.py`, re-run 2026-11-23 after it was changed to apply
+the simulator's wrap:
 
 ```
-hairpin track: length 283.8 m, 142 samples, spacing 2.00 m
-    x    y  windowed s  global s     jump  reward
-   40    0        40.0      40.0     +0.0    +0.0
-   60    0        60.0      60.0     +0.0    +0.0
-   80    0        80.0      80.0     +0.0    +0.0
-   40    5        40.0      40.0     +0.0    +0.0
-   60    5        60.0      60.0     +0.0    +0.0
-   80    5        80.0      80.0     +0.0    +0.0
-   40    8        40.0     221.9   +181.9   +18.2
-   60    8        60.0     201.9   +141.9   +14.2
-   80    8        80.0     181.9   +101.9   +10.2
+hairpin track: length 283.8 m (half a lap 141.9 m), 142 samples, spacing 2.00 m
+    x    y  windowed s  global s   sim ds  reward  outcome
+   40    0        40.0      40.0     +0.0    +0.0  no jump
+   60    0        60.0      60.0     +0.0    +0.0  no jump
+   80    0        80.0      80.0     +0.0    +0.0  no jump
+   40    5        40.0      40.0     +0.0    +0.0  no jump
+   60    5        60.0      60.0     +0.0    +0.0  no jump
+   80    5        80.0      80.0     +0.0    +0.0  no jump
+   40    8        40.0     221.9   -101.9   -10.2  fake wrong-way ending (> 15 m backwards)
+   60    8        60.0     201.9   -141.9   -14.2  fake wrong-way ending (> 15 m backwards)
+   80    8        80.0     181.9   +101.9   +10.2  fake progress reward
 
 project() for 256 cars on twisty (563 samples):
-  windowed (half = 10, 21 candidates):      231 us per call
-  global (half = 281, 563 candidates):     5287 us per call
+  windowed (half = 10, 21 candidates):      254 us per call
+  global (half = 281, 563 candidates):     5063 us per call
 ```
 
 On the road (`y = 0` and `y = 5`) both searches agree: here the gap between the straights'
 centerlines (14 m) is more than one road width (12 m), so a car on the asphalt is always
-nearest its own straight. In the grass gap (`y = 8`) the global search jumps 100 to 180 m ahead
-and would pay +10 to +18 reward in a single step, more than a whole lap bonus (10). The windowed
-search never jumps, whatever the track. It is also 23× cheaper, and projection runs every physics
-substep for every car.
+nearest its own straight. At `y = 8`, on the far road's edge, the global search jumps 100 to 180 m
+along the lap, and what that does depends on the wrap:
+
+- at `x = 80` the jump (101.9 m) is less than half a lap, so the simulator pays it as progress:
+  +10.2 reward in one step, more than a whole lap bonus (10);
+- at `x = 40` the jump (181.9 m) is more than half a lap, so it reads as 101.9 m *backwards*:
+  −10.2 reward and a wrong-way ending;
+- at `x = 60` the jump is exactly half a lap (141.9 m), the edge case: the wrap rule happens to
+  read it as backwards.
+
+So a global search would hand out either a free reward or a punishment for nothing, depending on
+where the car is. The windowed search never jumps, whatever the track. It is also about 20×
+cheaper (254 µs against 5,063 µs; the first run of the script measured 231 against 5,287), and
+projection runs every physics substep for every car.
 
 </details>
 

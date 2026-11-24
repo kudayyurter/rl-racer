@@ -19,7 +19,7 @@ For each track and spacing it prints:
 * car-steps/s simulator throughput with 256 cars (2 s of random driving), because the sensor
               rays check every wall segment within ray range and finer spacing means more of them
 
-Run: uv run python docs/lessons/scripts/projection_error.py   (about 30 s)
+Run: uv run python docs/lessons/scripts/projection_error.py   (about 10 s)
 """
 
 import json
