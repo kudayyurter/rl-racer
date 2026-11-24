@@ -6,6 +6,7 @@ Every subcommand imports its implementation lazily inside its handler, so
 
 import argparse
 import importlib
+import sys
 
 COMMANDS = {
     "drive": "play the game yourself with the keyboard",
@@ -15,6 +16,23 @@ COMMANDS = {
     "bench": "benchmark simulation speed",
     "gen-track": "generate a random track",
 }
+
+
+def _error(command: str, message: str) -> int:
+    """A user mistake (typo in a key, a track or a path): one line on stderr, exit code 2."""
+    print(f"racer {command}: {message}", file=sys.stderr)
+    return 2
+
+
+def _missing_track(name: str) -> str | None:
+    """None if ``name`` loads as a track, else a one-line reason (without loading raylib)."""
+    from racer.track import load_track
+
+    try:
+        load_track(name)
+    except FileNotFoundError as e:
+        return f"no track {name!r}: {e.filename} does not exist"
+    return None
 
 
 def _bench(args: argparse.Namespace) -> int:
@@ -34,6 +52,9 @@ def _drive(args: argparse.Namespace) -> int:
 
 
 def _watch(args: argparse.Namespace) -> int:
+    # Checked before racer.watch is imported: a typo should not open a window first.
+    if args.track is not None and (problem := _missing_track(args.track)):
+        return _error("watch", problem)
     # Imported here so `racer --help` doesn't load raylib or torch.
     from racer.watch import run_watch
 
@@ -69,16 +90,25 @@ TRAIN_METHODS = {
 
 def _train(args: argparse.Namespace) -> int:
     # Imported here so `racer --help` doesn't load numpy-heavy training code.
-    from racer.config import load_env_config, load_method_config, parse_overrides
+    from racer.config import ConfigError, load_env_config, load_method_config, parse_overrides
     from racer.runlog import RunDir
 
     module = importlib.import_module(TRAIN_METHODS[args.method])
-    overrides = parse_overrides(args.set)
-    if args.seed is not None:
-        overrides["seed"] = args.seed
-    cfg = load_method_config(module.CONFIG_CLASS, args.config or f"configs/{args.method}.toml",
-                             overrides)
-    env_cfg = load_env_config(args.env_config, parse_overrides(args.env_set))
+    # Every user mistake is caught here, before a run directory exists, so a typo leaves
+    # neither a traceback nor an empty runs/ entry behind.
+    try:
+        overrides = parse_overrides(args.set)
+        if args.seed is not None:
+            overrides["seed"] = args.seed
+        cfg = load_method_config(module.CONFIG_CLASS, args.config or f"configs/{args.method}.toml",
+                                 overrides)
+        env_cfg = load_env_config(args.env_config, parse_overrides(args.env_set))
+    except ConfigError as e:
+        return _error("train", f"bad config: {e}")
+    except FileNotFoundError as e:
+        return _error("train", f"no config file {e.filename}")
+    if problem := _missing_track(cfg.track):
+        return _error("train", problem)
     run = RunDir.create(args.method, cfg.seed, extra_columns=module.EXTRA_COLUMNS)
     print(f"run directory: {run.path}")
     module.train(cfg, env_cfg, run)

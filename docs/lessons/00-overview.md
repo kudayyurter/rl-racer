@@ -262,14 +262,16 @@ uv run racer train evolution --set mutation_sdt=0.2
 
 <details><summary>What we got</summary>
 
-Run 2026-11-23. It stops before creating a run directory; the last line of the traceback is:
+Re-run 2026-11-24. It stops before creating a run directory, prints one line and exits with
+code 2:
 
 ```
-racer.config.ConfigError: unknown config key(s) for EvolutionConfig: mutation_sdt
+racer train: bad config: unknown config key(s) for EvolutionConfig: mutation_sdt
 ```
 
 A silently ignored typo would cost a whole training run and leave a wrong conclusion ("mutation
-size made no difference"). The check is in [`from_dict`](../../racer/config.py#L85-L113).
+size made no difference"). The check is in [`from_dict`](../../racer/config.py#L85-L113); the
+one-line message (instead of a Python traceback) comes from [`_train`](../../racer/cli.py#L91-L115), which also refuses a misspelled track this way.
 
 </details>
 
