@@ -19,6 +19,9 @@ def test_sb3_smoke(tmp_path):
     rows = run.read_metrics()
     assert len(rows) >= 2 and rows[-1]["env_steps"] >= 4096
     assert all(c in rows[-1] for c in METRIC_COLUMNS)
+    # Strictly increasing: chunked learn() continues the run instead of restarting it.
+    for prev, cur in zip(rows, rows[1:]):
+        assert cur["iteration"] > prev["iteration"] and cur["env_steps"] > prev["env_steps"]
     assert not np.isnan(rows[-1]["eval_laps"])
     policy = load_policy(run.path / "checkpoints" / "latest.pt")
     assert policy.act(np.zeros((1, 12))).shape == (1, 2)
@@ -42,6 +45,8 @@ def test_sb3_config_matches_ppo_toml():
              "env_steps_budget": "env_steps_budget"}
     for sb3_key, ppo_key in pairs.items():
         assert sb3[sb3_key] == ppo[ppo_key], sb3_key
+    # Same evaluation cadence: PPO evaluates every `eval_every` iterations of n_cars * n_steps.
+    assert sb3["eval_every_steps"] == ppo["eval_every"] * ppo["n_cars"] * ppo["n_steps"]
     assert tuple(sb3["net_arch"]) == tuple(ppo["hidden"])
     # The file loads through the strict loader into a config with the same shared numbers.
     cfg = load_method_config(SB3Config, "configs/sb3.toml")

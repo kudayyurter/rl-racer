@@ -17,5 +17,5 @@ normalize_advantage = true # = ppo normalize_adv
 net_arch = [64, 64]        # = ppo hidden, for both actor and critic
 # Placeholder: Task 17 fixes the real budget. Counts car-decisions.
 env_steps_budget = 2_000_000
-eval_every_steps = 81_920  # = 5 PPO iterations of 16 * 128 steps
+eval_every_steps = 10_240  # = 5 PPO iterations of 16 * 128 = 2,048 steps each
 seed = 0

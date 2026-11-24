@@ -64,7 +64,7 @@ EXTRA_COLUMNS: tuple[str, ...] = ()
 @dataclass
 class SB3Config:
     env_steps_budget: int           # stop after this many car-decisions
-    eval_every_steps: int = 81_920  # evaluate + checkpoint roughly this often (on rollout ends)
+    eval_every_steps: int = 10_240  # evaluate + checkpoint roughly this often (on rollout ends)
     track: str = "twisty"
     n_envs: int = 16                # = our n_cars
     n_steps: int = 128              # per env
