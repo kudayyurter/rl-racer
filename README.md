@@ -65,7 +65,7 @@ simulator to the viewer, and lists every command.
 | [05 · REINFORCE](docs/lessons/05-reinforce.md) | the policy gradient derived, reward-to-go, why plain REINFORCE is noisy |
 | [06 · A2C](docs/lessons/06-a2c.md) | a critic as baseline, n-step bootstrapping, the truncation fix |
 | [07 · PPO vs Stable-Baselines3](docs/lessons/07-ppo.md) | trust regions, the clipped objective, GAE derived, our PPO checked against SB3's |
-| [08 · Fastest lap](docs/lessons/08-fastest-lap.md) | reward shaping, the fixed-horizon time-cost trap, why a bigger time cost made evolution and PPO slower |
+| [08 · Fastest lap](docs/lessons/08-fastest-lap.md) | reward shaping, the fixed-horizon time-cost trap, why a bigger time cost made neither method faster, and evolution stopped lapping |
 | 09 · Generalization to random tracks | coming |
 | 10 · Results | coming |
 

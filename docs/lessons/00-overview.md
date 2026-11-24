@@ -163,7 +163,7 @@ table of the ones that pin its key behaviours.
 | [**05**](05-reinforce.md) | REINFORCE: the policy-gradient theorem derived, and why it is noisy |
 | [**06**](06-a2c.md) | A2C: a learned baseline, n-step bootstrapping, the truncation fix |
 | [**07**](07-ppo.md) | PPO: the clipped objective, GAE, minibatch epochs, checked against Stable-Baselines3 |
-| [**08**](08-fastest-lap.md) | fastest lap: reward shaping, what a time cost pays for under each episode rule, and why it slowed both methods down |
+| [**08**](08-fastest-lap.md) | fastest lap: reward shaping, what a time cost pays for under each episode rule, and why a bigger one made neither method faster (evolution stopped lapping) |
 | **09** | generalization: training on random tracks, testing on unseen ones (coming) |
 | **10** | results: every method compared by env steps and by wall-clock time (coming) |
 

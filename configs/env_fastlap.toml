@@ -8,7 +8,7 @@
 # attractive crashing early is. So the episode must end at the finish line (max_laps), and the
 # time limit must be long enough that it does not cut a lapping driver off first.
 # (An earlier version of this file set max_laps = 3 with the 90 s limit: three twisty laps take
-# at least 120 s, so every surviving episode ran exactly 90 s and the 5x time cost did nothing
+# at least 117 s even at the fastest lap any method set (39.03 s), so every surviving episode ran exactly 90 s and the 5x time cost did nothing
 # but make crashing cheaper. Lesson 08 shows the arithmetic.)
 #
 # What this does NOT change: methods that bootstrap through truncation (A2C, PPO, SB3) treat
@@ -37,8 +37,9 @@ time_cost = 0.05           # reward lost per agent step (encourages speed)
 lap_bonus = 10.0           # reward for completing a lap
 wrong_way_m = 15.0         # backwards progress (m) that ends the episode
 # CHANGED (was 90): two laps finish inside the limit for any driver lapping in 60 s or less, so
-# episode length is 2 x lap time and the time cost is a price on lap time (twisty laps take
-# 40-56 s once a policy can lap; at 90 s, drivers slower than 45 s were cut off first).
+# episode length is 2 x lap time and the time cost is a price on lap time (trained policies lap
+# twisty in about 39-59 s; a policy's very first laps can be slower than 60 s, e.g. 65.75 s, and
+# those are still cut off by the limit; at 90 s, drivers slower than 45 s were cut off first).
 max_episode_s = 120.0      # episode time limit, s
 max_laps = 2               # laps that end the episode successfully
 random_start = false       # start at a random point on the track

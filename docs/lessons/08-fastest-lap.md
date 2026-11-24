@@ -7,11 +7,13 @@ reward, set 39.03 s (lesson 07). This lesson changes the reward to ask for speed
 [`configs/env_fastlap.toml`](../../configs/env_fastlap.toml), a five times larger time cost, and
 measures what happens. Three things come out of it. The first version of that config did not do
 what its comment said, and why it did not is the most useful idea here: a per-step cost only
-prices time if the episode can end sooner. After the fix, the bigger time cost made things worse,
-not better: evolution never got past the first hairpin on any of three seeds (it had lapped on all
-three with the default reward), and PPO's best laps came out slower (median 43.48 s against
-42.13 s). A smaller increase, twice the default, did not help either. And the derivation of *why* gives the lesson's main tool: write down what each
-learner actually maximizes, and ask which of its choices a reward change reorders.
+prices time if the episode can end sooner. After the fix, the bigger time cost made evolution
+worse and PPO no better: evolution never got past the first hairpin on any of three seeds (it had
+lapped on all three with the default reward), and PPO's best laps came out slower (median 43.48 s
+against 42.13 s, a gap inside the run-to-run spread we measured, so suggestive rather than
+proven). A smaller increase, twice the default, did not help either. And the derivation of *why*
+gives the lesson's main tool: write down what each learner actually maximizes, and ask which of
+its choices a reward change reorders.
 
 Files: [`configs/env_fastlap.toml`](../../configs/env_fastlap.toml), [`configs/env.toml`](../../configs/env.toml),
 [`racer/sim.py`](../../racer/sim.py), [`racer/algos/evolution.py`](../../racer/algos/evolution.py),
@@ -83,15 +85,15 @@ Read it term by term:
 | config | what ends a clean episode | progress | time cost | 41 s driver's edge |
 |---|---|---|---|---|
 | `env.toml` (0.01 per decision, 2 laps, 90 s) | the line, at `2T` | 225.28 for both (same distance) | `0.15 · 2T`: 12.30 vs 13.50 | **+1.20**, all from the time cost |
-| old `env_fastlap` (0.05, **3 laps**, 90 s) | the clock, at 90 s (3 laps need `3T` ≥ 123 s) | 247.26 vs 225.28 (more meters in 90 s) | `0.75 · 90` = 67.50 for **both** | **+21.98**, all from progress |
+| old `env_fastlap` (0.05, **3 laps**, 90 s) | the clock, at 90 s (3 laps need `3T`: 123 s at 41 s laps) | 247.26 vs 225.28 (more meters in 90 s) | `0.75 · 90` = 67.50 for **both** | **+21.98**, all from progress |
 | fixed `env_fastlap.toml` (0.05, 2 laps, 120 s) | the line, at `2T` | 225.28 for both | `0.75 · 2T`: 61.50 vs 67.50 | **+6.00**, all from the time cost |
 
 ### The bug in the first fast-lap config
 
 The plan's first `env_fastlap.toml` raised the time cost five times "so every second costs more"
 and raised `max_laps` from 2 to 3. On twisty those two changes cancel. Three laps take at least
-123 s at the best lap any method has set (40.77 s, lesson 04), so no car ever finishes them in
-90 s: every episode that does not crash ends at the time limit, after exactly 1,350 decisions,
+117 s even at the best lap any method has set (A2C's 39.03 s, lesson 06), so no car ever finishes
+them in 90 s: every episode that does not crash ends at the time limit, after exactly 1,350 decisions,
 and pays exactly `1,350 × 0.05 = 67.50` of time cost. A number that every surviving driver pays
 in full cannot tell them apart. [`time_cost_returns.py`](scripts/time_cost_returns.py) confirms it on
 real checkpoints, the two fastest evolution genomes of lesson 04 and the PPO checkpoint that set
@@ -299,12 +301,18 @@ Per run (`run_summary.py`; lesson 07's table for the default PPO runs, lesson 04
 The fast-lap evolution runs are the flat dashed line at 283 m in the progress panel. All three
 spent the whole 4.5M steps with a best genome that drives flat out down the start straight and
 crashes in the first hairpin (best fitness between 11.2 and 11.5 from generation 10 to the end,
-in the console logs), exactly the generation-5 driver of lesson 04 that was worth 9.80 under this
-reward. They ran 330-340 generations, five to six times more than the default runs' 54-64,
-because a generation of crashers is short. Selection had plenty of chances; it had nothing to
-select *for*: as computed above, every car that slows down enough to survive the hairpin pays
-more time cost than the crashers lose, until it can also drive the rest of the lap quickly. The
-reward that asks for fast laps took away the reward for the slow ones that come first.
+in the console logs), the same kind of driver as lesson 04's generation-5 genome, which was worth
+9.80 under this reward (11.48 here, crashing at 283 m instead of 285 m). They ran 330-340 generations, five to six times more than the default runs' 54-64,
+because a generation of crashers is short. Selection had plenty of chances, and still never kept a car that
+got through. The arithmetic says why the *slow* survivors evolution actually produced lost: the
+crawler above scored -40.21 against the crashers' 11.48. It does not say every survivor must
+lose. A car that braked only for the hairpin and crashed at the next corner (about 500 m after
+about 20 s) would score roughly 50 - 10 - 15 = 25, more than the crashers. That such a car never
+appeared in 330-340 generations suggests the real barrier is how mutations act: in a 12-32-2
+network a change that makes the car brake before the hairpin most likely also slows it on the
+straight and everywhere else, which produces a crawler, not a selective braker. We did not test
+this directly. Either way, the reward that asks for fast laps took away the reward for the
+cautious drivers that came first under `env.toml`.
 
 ### PPO: laps, but slower and crashier
 
@@ -564,8 +572,8 @@ budget until it stops.)
   gives n = 19 decisions, 1.27 s: straight into the side of the road. PPO's training log at the end
   reads "ep len 19.0" and an explained variance of 1.00: the critic predicts a 19-step crash
   perfectly, because every episode is one. Evolution seed 1 found a better crash: flat out into
-  the first hairpin, -8.99 at 282.1 m (136 decisions), because 28 meters of progress pay a little
-  more than the 9 s of time cost. That is the reward working exactly as written.
+  the first hairpin, -8.99 at 282.1 m (136 decisions), because 282 m of progress (28.2 return) pay a little
+  more than the 9 s of time cost (27.2). That is the reward working exactly as written.
 - **Evolution laps only at ×1, and once at ×2.** At 0.02, seed 1 got through after 1.36M steps,
   seed 0 never did; at 0.05 neither did. That is the beginner's threshold from above (1.5, 3.0,
   7.5 m/s) in action: the larger it is, the fewer of the early, slow, survivable drivers score
@@ -588,7 +596,8 @@ budget until it stops.)
 **Predict.** For PPO a crash now costs 100 - 5 = 95 instead of 5: much more caution, so slower
 laps but fewer crashes. For evolution a crash costs as much as 1,000 m of progress, so a driver
 that never crashes beats any crasher, however slow. Does that restore the crawler stepping stone?
-(The time cost still charges the crawler 0.75 a second.)
+(Among cars that all survive the 120 s, the time cost is the same 90 for each and ranks
+nothing; what matters is how far they get, and what it risks.)
 
 **Run.** `--env-set crash_penalty=100`
 
@@ -610,13 +619,18 @@ that never crashes beats any crasher, however slow. Does that restore the crawle
   spent its first quarter not lapping at all (35 of 36 evaluations, `lap_counts.py`) and its final
   evaluation crashed anyway, at 420.8 m: a bigger penalty makes the advantages of crash-adjacent
   actions larger, not the policy wiser.
-- **Evolution: the crawler is back, the laps are not.** Both seeds' best genome stopped crashing
-  and crept 334-361 m in 120 s (returns -56.59 and -53.92, which beat any crash at -100). That is
-  the stepping stone of lesson 04, but now the time cost of 0.75 per second makes a crawler that
-  gets a little further and a little faster *lose* to one that stays slow, so the climb from
-  "survives" to "laps" never starts. Two penalties, each sensible alone, together left no path.
-  These runs also used a few more steps than the budget (1,649,471 and 1,652,456): a generation of
-  crawlers lasts the full 120 s, and evolution always finishes the generation it started.
+- **Evolution: the crawler is back, the laps are not (yet).** Both seeds' best genome stopped
+  crashing and crept 334-361 m in 120 s (returns -56.59 and -53.92, which beat any crash at -100).
+  That is the stepping stone of lesson 04. Among crawlers that all survive to the time limit the
+  time cost is the same 90 for each (the fixed-horizon rule above), so fitness is `0.1 ·` distance
+  `- 90` and a crawler that gets further always ranks higher: the time cost is not what holds them
+  back. What does is risk: a crawler that speeds up to get further also risks a crash, and a
+  crash now costs 100, so most faster mutants score far below their slow parents. And these runs
+  had little time to climb: a generation of crawlers lasts the full 120 s, so the 1.5M budget
+  bought only 28 and 15 generations (final iterations in `metrics.csv`), against 94 and 93 for the
+  crash-penalty-10 runs, and they used a few more steps than the budget (1,649,471 and 1,652,456)
+  because evolution always finishes the generation it started. Fifteen to 28 generations cannot
+  tell "no path" from "a slow path"; a longer run would be needed to say which.
 
 </details>
 
