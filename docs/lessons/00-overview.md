@@ -107,7 +107,7 @@ each method batches its cars.
 
 ## Commands
 
-All commands are subcommands of `racer` ([`cli.py`](../../racer/cli.py#L11-L18)); `uv run racer
+All commands are subcommands of `racer` ([`cli.py`](../../racer/cli.py#L15-L22)); `uv run racer
 <command> --help` lists every flag.
 
 | command | what it does | example |
@@ -135,7 +135,7 @@ Useful flags:
 A file written by `gen-track` drives like any other: `uv run racer drive --track tracks/rand_7.json`.
 
 Overrides go through the same strict loader as the files
-([`config.py#L145-L166`](../../racer/config.py#L145-L166)), so a typo stops the run before it
+([`config.py#L145-L166`](../../racer/config.py#L145-L169)), so a typo stops the run before it
 starts instead of quietly using a default (Experiment 3).
 
 ## Tests
@@ -271,7 +271,7 @@ racer train: bad config: unknown config key(s) for EvolutionConfig: mutation_sdt
 
 A silently ignored typo would cost a whole training run and leave a wrong conclusion ("mutation
 size made no difference"). The check is in [`from_dict`](../../racer/config.py#L85-L113); the
-one-line message (instead of a Python traceback) comes from [`_train`](../../racer/cli.py#L91-L115), which also refuses a misspelled track this way.
+one-line message (instead of a Python traceback) comes from [`_train`](../../racer/cli.py#L101-L125), which also refuses a misspelled track this way.
 
 </details>
 

@@ -5,7 +5,7 @@ produce the ghost laps the viewer replays) we drive one car with the policy's de
 action and record what happened: return, distance, laps, and the pose trace of the fastest lap.
 """
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 import numpy as np
 
@@ -26,8 +26,12 @@ class EvalResult:
 
 
 def evaluate(policy: Policy, track: Track, cfg: EnvConfig) -> EvalResult:
-    """Drive one car from the start line until its episode ends, with no exploration noise."""
-    sim = BatchSim(track, cfg, n_cars=1, seed=0, auto_reset=False)
+    """Drive one car from the start line until its episode ends, with no exploration noise.
+
+    Always from the start line, even when training uses ``random_start``: every evaluation and
+    ghost lap then begins at the same place, so they compare across runs and settings.
+    """
+    sim = BatchSim(track, replace(cfg, random_start=False), n_cars=1, seed=0, auto_reset=False)
     obs = sim.reset()
 
     times = [float(sim.episode_time[0])]

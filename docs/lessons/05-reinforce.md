@@ -251,7 +251,7 @@ step the old samples no longer estimate it. This is what *on-policy* means, and 
 each batch, tens of thousands of decisions, buys exactly one gradient step.
 
 Every `eval_every = 5` iterations, and on the last, the mean policy drives one
-[`evaluate`](../../racer/evaluate.py#L28-L57) episode and a checkpoint is saved
+[`evaluate`](../../racer/evaluate.py#L28-L61) episode and a checkpoint is saved
 ([lines 189-202](../../racer/algos/reinforce.py#L189-L202)), exactly as for evolution. The two
 extra `metrics.csv` columns are the batch's mean episode length and the mean `log_std`
 ([line 36](../../racer/algos/reinforce.py#L36)).

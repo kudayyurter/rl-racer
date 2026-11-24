@@ -27,6 +27,7 @@ The car runs the exact environment the run trained in: the env config comes from
 Controls: D toggles the debug overlay (walls, centerline, sensor rays), Esc quits.
 """
 
+import dataclasses
 import json
 import math
 from pathlib import Path
@@ -164,7 +165,9 @@ class WatchSession:
         self.ghosts_hidden = train_name is not None and name != train_name and \
             self.track.name != _track_name_or_none(train_name)
         self.cfg = from_dict(EnvConfig, config.get("env", {}))
-        self.sim = BatchSim(self.track, self.cfg, n_cars=1, auto_reset=False)
+        # From the start line, like racer.evaluate, so the live car and the ghosts share a lap.
+        self.sim = BatchSim(self.track, dataclasses.replace(self.cfg, random_start=False),
+                            n_cars=1, auto_reset=False)
         self.obs = self.sim.reset()
 
     def _load(self) -> None:

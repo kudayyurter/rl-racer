@@ -265,7 +265,7 @@ a few better ones per generation are enough. Experiment 1 changes this number.
 
 **3. Evaluate and checkpoint, every `eval_every` = 5 generations and on the last one**
 ([lines 143-157](../../racer/algos/evolution.py#L143-L157)). The best genome of the generation
-drives one episode in [`evaluate`](../../racer/evaluate.py#L28-L57), its checkpoint is saved, and if
+drives one episode in [`evaluate`](../../racer/evaluate.py#L28-L61), its checkpoint is saved, and if
 it completed a lap, so is its fastest lap as a ghost.
 
 The evaluation drives the same genome from the same start line, so you might expect
@@ -319,7 +319,7 @@ The other two pieces of that fairness:
   ([`configs/budgets.md`](../../configs/budgets.md)). It counts car-decisions, so 128 cars driving
   for 10 decisions cost 1,280, exactly as 1,280 decisions of PPO's 16 cars would. The budget is
   checked between generations, so a run overshoots by part of a generation.
-- **The same evaluation.** [`evaluate`](../../racer/evaluate.py#L28-L57) drives one car from the
+- **The same evaluation.** [`evaluate`](../../racer/evaluate.py#L28-L61) drives one car from the
   start line with the policy's deterministic action until the episode ends, and reports return,
   progress, laps and the fastest lap. Every method's numbers in these lessons come from it.
 
@@ -369,7 +369,7 @@ uv run racer watch runs/evolution-<timestamp>-s0
 
 The viewer only reads the run directory, so it never slows training down. Every 3 s it re-reads
 `metrics.csv` and the ghosts, and checks whether `latest.pt` has changed. A new checkpoint waits
-until the live car's episode ends ([watch.py#L209-L214](../../racer/watch.py#L209-L214)), so a lap
+until the live car's episode ends ([watch.py#L231-L236](../../racer/watch.py#L231-L236)), so a lap
 is never driven half by one network and half by another. On screen:
 
 - **The live car** (yellow) is the newest checkpoint driving on the run's own track and

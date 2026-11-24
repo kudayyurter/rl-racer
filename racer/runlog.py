@@ -96,8 +96,7 @@ class RunDir:
                 header = next(csv.reader(f), None)
             if header:
                 columns = header
-        (path / "checkpoints").mkdir(exist_ok=True)
-        (path / "ghosts").mkdir(exist_ok=True)
+        # Read-only: watch and compare open runs, so nothing is created here.
         return cls(path, columns)
 
     # ---------------------------------------------------------------- config and metrics

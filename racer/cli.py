@@ -7,6 +7,10 @@ Every subcommand imports its implementation lazily inside its handler, so
 import argparse
 import importlib
 import sys
+from pathlib import Path
+
+# Default configs live in the repo, not wherever the command is run from (as in racer.drive).
+CONFIGS_DIR = Path(__file__).resolve().parent.parent / "configs"
 
 COMMANDS = {
     "drive": "play the game yourself with the keyboard",
@@ -106,7 +110,7 @@ def _train(args: argparse.Namespace) -> int:
         overrides = parse_overrides(args.set)
         if args.seed is not None:
             overrides["seed"] = args.seed
-        cfg = load_method_config(module.CONFIG_CLASS, args.config or f"configs/{args.method}.toml",
+        cfg = load_method_config(module.CONFIG_CLASS, args.config or CONFIGS_DIR / f"{args.method}.toml",
                                  overrides)
         env_cfg = load_env_config(args.env_config, parse_overrides(args.env_set))
     except ConfigError as e:
@@ -126,7 +130,7 @@ def _add_train_parser(train: argparse.ArgumentParser) -> None:
     for name in TRAIN_METHODS:
         p = methods.add_parser(name, help=f"train with {name}")
         p.add_argument("--config", help=f"method config TOML (default configs/{name}.toml)")
-        p.add_argument("--env-config", default="configs/env.toml",
+        p.add_argument("--env-config", default=str(CONFIGS_DIR / "env.toml"),
                        help="environment config TOML (default configs/env.toml)")
         p.add_argument("--seed", type=int, help="random seed (default: the config's seed)")
         p.add_argument("--set", action="append", default=[], metavar="KEY=VALUE",
