@@ -1,0 +1,24 @@
+# PPO on a fresh random track every rollout, evaluated on `track` (twisty) and on 10 held-out
+# random tracks (eval_heldout_laps_mean). Compare with ppo.toml to see memorizing vs learning.
+track = "twisty"           # the eval track; eval_* columns stay comparable with fixed runs
+tracks = "random"          # new random training track every `track_every` rollouts
+track_every = 1            # random mode: rollouts per new training track
+n_cars = 16                # cars driving in parallel while collecting
+n_steps = 128              # steps per car per rollout (one update = n_cars * n_steps samples)
+gamma = 0.99               # discount factor
+lam = 0.95                 # GAE lambda: 0 = one-step advantage, 1 = full n-step return - V
+clip = 0.2                 # PPO clip range epsilon
+epochs = 10                # passes over each rollout's data
+minibatch = 256            # samples per gradient step
+lr = 3e-4                  # Adam learning rate
+value_coef = 0.5           # weight of the critic's loss
+entropy_coef = 0.0         # entropy bonus weight (0 = off)
+max_grad_norm = 0.5        # gradient clipping threshold
+normalize_adv = true       # standardize advantages within each minibatch
+hidden = [64, 64]          # actor and critic hidden layer sizes
+# Random-track PPO has its own budget. Counts car-decisions.
+# Measured 2026-11-23 (Ryzen 7 7700X): 3.0k/s, slower than fixed-track ppo (5.3k/s) because every
+# eval also drives 10 held-out tracks. 2.5M steps = ~830 s, about 15 min. See configs/budgets.md.
+env_steps_budget = 2_500_000
+eval_every = 5             # iterations between deterministic evaluations + checkpoints
+seed = 0

@@ -1,0 +1,24 @@
+# Stable-Baselines3 PPO, the answer key. Every number that has a counterpart in configs/ppo.toml
+# is the same here (tests/test_sb3.py fails if they drift), so any gap between our PPO and SB3
+# is the implementation, not the settings. SB3's names differ; see the table in sb3_ppo.py.
+track = "twisty"
+n_envs = 16                # = ppo n_cars
+n_steps = 128              # per env, = ppo n_steps
+batch_size = 256           # = ppo minibatch
+n_epochs = 10              # = ppo epochs
+gamma = 0.99
+gae_lambda = 0.95          # = ppo lam
+clip_range = 0.2           # = ppo clip
+ent_coef = 0.0             # = ppo entropy_coef
+vf_coef = 0.5              # = ppo value_coef
+max_grad_norm = 0.5
+learning_rate = 3e-4       # = ppo lr
+normalize_advantage = true # = ppo normalize_adv
+net_arch = [64, 64]        # = ppo hidden, for both actor and critic
+# Equal budget for every method on twisty (spec). Counts car-decisions.
+# Measured 2026-11-23 on twisty (Ryzen 7 7700X), env_steps / wall_time_s over ~60 s:
+#   evolution 6.9k/s, reinforce 12.6k/s, a2c 8.6k/s, ppo 5.3k/s, sb3 5.0k/s (slowest; one batched sim since 2026-11-23).
+# 4.5M steps = ~900 s for sb3 (the slowest), i.e. about 15 min. See configs/budgets.md.
+env_steps_budget = 4_500_000
+eval_every_steps = 10_240  # = 5 PPO iterations of 16 * 128 = 2,048 steps each
+seed = 0

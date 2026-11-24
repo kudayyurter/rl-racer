@@ -1,0 +1,24 @@
+# PPO: A2C plus GAE, stored old log-probs and clipped minibatch epochs.
+track = "twisty"           # tracks/<name>.json, or a path
+tracks = "fixed"           # "fixed" = train on `track`; "random" = new random track (see ppo_random.toml)
+track_every = 1            # random mode: rollouts per new training track
+n_cars = 16                # cars driving in parallel while collecting
+n_steps = 128              # steps per car per rollout (one update = n_cars * n_steps samples)
+gamma = 0.99               # discount factor
+lam = 0.95                 # GAE lambda: 0 = one-step advantage, 1 = full n-step return - V
+clip = 0.2                 # PPO clip range epsilon
+epochs = 10                # passes over each rollout's data
+minibatch = 256            # samples per gradient step
+lr = 3e-4                  # Adam learning rate
+value_coef = 0.5           # weight of the critic's loss
+entropy_coef = 0.0         # entropy bonus weight (0 = off)
+max_grad_norm = 0.5        # gradient clipping threshold
+normalize_adv = true       # standardize advantages within each minibatch
+hidden = [64, 64]          # actor and critic hidden layer sizes
+# Equal budget for every method on twisty (spec). Counts car-decisions.
+# Measured 2026-11-23 on twisty (Ryzen 7 7700X), env_steps / wall_time_s over ~60 s:
+#   evolution 6.9k/s, reinforce 12.6k/s, a2c 8.6k/s, ppo 5.3k/s, sb3 5.0k/s (slowest; one batched sim since 2026-11-23).
+# 4.5M steps = ~900 s for sb3 (the slowest), i.e. about 15 min. See configs/budgets.md.
+env_steps_budget = 4_500_000
+eval_every = 5             # iterations between deterministic evaluations + checkpoints
+seed = 0
