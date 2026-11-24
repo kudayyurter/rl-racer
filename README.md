@@ -61,7 +61,7 @@ simulator to the viewer, and lists every command.
 | [01 · Track and geometry](docs/lessons/01-track-and-geometry.md) | spline, arc-length sampling, windowed projection, ray math |
 | [02 · Car physics](docs/lessons/02-car-physics.md) | kinematic bicycle, grip limit, the braking problem |
 | [03 · Sensors and the environment](docs/lessons/03-sensors-and-env.md) | observation, reward, terminated vs truncated, batching |
-| 04 · Neural nets and neuroevolution | coming |
+| [04 · Neural nets and neuroevolution](docs/lessons/04-neural-nets-and-evolution.md) | the MLP forward pass, a population of networks, selection and mutation with no gradients |
 | 05 · REINFORCE | coming |
 | 06 · A2C | coming |
 | 07 · PPO vs Stable-Baselines3 | coming |

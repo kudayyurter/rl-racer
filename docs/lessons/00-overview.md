@@ -159,7 +159,7 @@ table of the ones that pin its key behaviours.
 | [**01**](01-track-and-geometry.md) | track and geometry: the spline, arc-length samples, windowed projection, ray and crossing math |
 | [**02**](02-car-physics.md) | car physics: the kinematic bicycle, the grip limit and why it forces braking |
 | [**03**](03-sensors-and-env.md) | sensors and the environment: observation, reward, terminated vs truncated, batching, Gymnasium |
-| **04** | neural nets and neuroevolution: a forward pass by hand, learning with no gradients (coming) |
+| [**04**](04-neural-nets-and-evolution.md) | neural nets and neuroevolution: a forward pass by hand, learning with no gradients |
 | **05** | REINFORCE: the policy-gradient theorem derived, and why it is noisy (coming) |
 | **06** | A2C: a learned baseline, n-step bootstrapping, the truncation fix (coming) |
 | **07** | PPO: GAE and the clipped objective, checked against Stable-Baselines3 (coming) |

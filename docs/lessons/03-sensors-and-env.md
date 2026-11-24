@@ -383,4 +383,4 @@ evolution run from lesson 00 (`runs/evolution-20261123-193221-s0`) reached an ev
 | [`test_passes_env_checker`](../../tests/test_gym_env.py#L14-L16) | `RacerEnv` passes Gymnasium's checker |
 | [`test_vec_env_matches_racer_env_step_by_step`](../../tests/test_sb3.py#L77-L104) | SB3's batched env and `RacerEnv` agree step by step |
 
-Next: 04 · Neural nets and neuroevolution (coming).
+Next: [04 · Neural nets and neuroevolution](04-neural-nets-and-evolution.md).
