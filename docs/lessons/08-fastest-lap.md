@@ -675,7 +675,7 @@ its second quarter and none after).
 | [`test_crash_terminates_with_penalty`](../../tests/test_sim.py#L60-L66) | a crash terminates and pays the penalty: the one ending PPO's objective sees |
 | [`test_wrong_way_terminates`](../../tests/test_sim.py#L141-L154) | the wrong-way rule terminates with no extra penalty: the cheapest exit a time cost could reward |
 | [`test_truncation_bootstrap`](../../tests/test_a2c.py#L26-L31) | truncated steps get `+ γ V(final_obs)`: the race never ends for the critic |
-| [`test_next_generation_selection_and_mutation`](../../tests/test_evolution.py#L96-L111) | selection keeps the top by rank: only fitness orderings matter |
+| [`test_next_generation_selection_and_mutation`](../../tests/test_evolution.py#L96-L110) | selection keeps the top by rank: only fitness orderings matter |
 
 Next: [09 · Generalization](09-generalization.md): every method so far learned one track. Lesson 09
 trains PPO on a new random track every rollout and tests it on tracks it has never seen.

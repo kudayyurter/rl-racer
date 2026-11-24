@@ -165,7 +165,7 @@ table of the ones that pin its key behaviours.
 | [**07**](07-ppo.md) | PPO: the clipped objective, GAE, minibatch epochs, checked against Stable-Baselines3 |
 | [**08**](08-fastest-lap.md) | fastest lap: reward shaping, what a time cost pays for under each episode rule, and why a bigger one made neither method faster (evolution stopped lapping) |
 | [**09**](09-generalization.md) | generalization: random-track training, held-out evaluation, what transferred (and what a mirror test broke) |
-| **10** | results: every method compared by env steps and by wall-clock time (coming) |
+| [**10**](10-results.md) | results: every method compared by env steps and by wall-clock time, the success bars checked, what each method is good for |
 
 ## What to look for in the viewer
 

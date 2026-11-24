@@ -67,7 +67,7 @@ simulator to the viewer, and lists every command.
 | [07 · PPO vs Stable-Baselines3](docs/lessons/07-ppo.md) | trust regions, the clipped objective, GAE derived, our PPO checked against SB3's |
 | [08 · Fastest lap](docs/lessons/08-fastest-lap.md) | reward shaping, the fixed-horizon time-cost trap, why a bigger time cost made neither method faster, and evolution stopped lapping |
 | [09 · Generalization](docs/lessons/09-generalization.md) | random-track training, held-out tracks, why a twisty-only driver transferred as well, and a mirror test that hurt both kinds |
-| 10 · Results | coming |
+| [10 · Results](docs/lessons/10-results.md) | all five methods on twisty and the oval, every success bar checked, and why env steps and wall-clock time rank them differently |
 
 ## Project layout
 
