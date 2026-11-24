@@ -75,7 +75,8 @@ def collect_rollout(sim: BatchSim, actor: GaussianActor, critic: Critic, obs: np
 
     No reset: ``obs`` is each car's current observation (the sim auto-respawns finished cars).
     At a truncated step the car's real next state is ``final_obs`` (``obs`` is already the
-    respawn), so we ask the critic what that state was worth and fold it into the reward.
+    respawn), so we ask the critic what that state was worth and record it as
+    ``final_values``; the caller folds it into the rewards (``add_truncation_bootstrap``).
     Returns (batch, next_obs):
       batch:    dict of arrays shaped (T, N, ...): ``obs``, ``actions`` (unclipped samples),
                 ``rewards`` (raw, no bootstrap), ``terminated``, ``truncated``, and
